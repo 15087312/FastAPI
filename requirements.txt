@@ -1,0 +1,26 @@
+# Web框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# 数据库相关
+sqlalchemy>=2.0.0
+psycopg[binary]>=3.1.0
+alembic>=1.12.0
+
+# 缓存和异步支持
+redis>=5.0.1
+aioredis>=2.0.1
+
+# Redis 连接池和工具
+redis-py-cluster>=2.1.0  # Redis 集群支持
+hiredis>=2.2.0          # 高性能 Redis 协议解析
+
+# 数据验证和序列化
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# 开发工具
+python-dotenv>=1.0.0
+
+# 日志和监控
+loguru>=0.7.0

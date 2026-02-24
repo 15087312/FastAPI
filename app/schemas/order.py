@@ -1,9 +1,9 @@
 # app/schemas/order.py
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
-from app.schemas.product import ProductSchema
+from app.schemas.inventory import ReserveStockRequest
 
 class OrderItemSchema(BaseModel):
     product_id: int
@@ -39,8 +39,6 @@ class CreateOrderResponse(BaseModel):
     order_no: str
     total_amount: Decimal
     status: str
-
-
 
 
 

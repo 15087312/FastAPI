@@ -1,4 +1,4 @@
-# 🛒 FastAPI Mall 库存微服务
+# FastAPI  库存微服务
 
 一个专业的、生产级的库存微服务，支持高并发环境下的库存安全管理，防止超卖问题。
 
@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-green)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-## 🌟 核心特性
+## 核心特性
 
 - ✅ **防超卖保障** - PostgreSQL 行级锁 + Redis 分布式锁双重保护
 - ✅ **高性能缓存** - Redis 缓存层加速读取，支持批量操作
@@ -15,7 +15,7 @@
 - ✅ **幂等保证** - 基于 Redis 的请求去重机制
 - ✅ **优雅降级** - Redis 故障时自动降级到数据库模式
 
-## 📋 快速开始
+## 快速开始
 
 ### 环境要求
 - Python 3.8+
@@ -23,10 +23,10 @@
 - PostgreSQL 15+
 - Redis 7+
 
-### 1️⃣ 环境配置
+### 一、环境配置
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone https://github.com/15087312/FastAPI.git
 cd FastAPI_mall
 
 # 创建环境变量
@@ -35,7 +35,7 @@ cd FastAPI_mall
 # 编辑 .env 文件配置数据库和 Redis 连接
 ```
 
-### 2️⃣ 启动基础服务
+### 二、启动基础服务
 ```bash
 # 启动 PostgreSQL 和 Redis
 docker compose up -d
@@ -44,7 +44,7 @@ docker compose up -d
 docker compose ps
 ```
 
-### 3️⃣ 安装依赖并启动应用
+### 三、安装依赖并启动应用
 ```bash
 # 安装 Python 依赖
 pip install -r requirements.txt
@@ -53,7 +53,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-### 4️⃣ 访问应用
+### 四、 访问应用
 - **API 文档**: http://localhost:8000/docs
 - **健康检查**: http://localhost:8000/
 - **pgAdmin**: http://localhost:5050

@@ -10,10 +10,17 @@ alembic>=1.12.0
 # 缓存和异步支持
 redis>=5.0.1
 aioredis>=2.0.1
+redlock-py>=1.0.0  # 分布式锁支持
 
 # Redis 连接池和工具
 redis-py-cluster>=2.1.0  # Redis 集群支持
 hiredis>=2.2.0          # 高性能 Redis 协议解析
+
+# 异步任务队列
+celery>=5.3.0
+
+# HTTP 客户端（用于测试）
+requests>=2.31.0
 
 # 数据验证和序列化
 pydantic>=2.5.0
@@ -24,3 +31,7 @@ python-dotenv>=1.0.0
 
 # 日志和监控
 loguru>=0.7.0
+
+# 测试相关
+pytest>=7.4.0
+httpx>=0.25.0  # 用于 FastAPI 测试

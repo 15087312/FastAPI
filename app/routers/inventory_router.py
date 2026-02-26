@@ -1,6 +1,6 @@
 """库存管理 API 路由（展示三种调用方式）"""
 
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import logging
@@ -32,9 +32,13 @@ async def reserve_stock(
         service = InventoryService(db, redis, rlock)
         result = service.reserve_stock(product_id, quantity, order_id)
         return {"success": True, "message": "预占成功", "data": result}
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"预占库存失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/confirm/{order_id}")
 async def confirm_stock(
@@ -48,9 +52,13 @@ async def confirm_stock(
         service = InventoryService(db, redis, rlock)
         result = service.confirm_stock(order_id)
         return {"success": True, "message": "确认成功", "data": result}
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"确认库存失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/release/{order_id}")
 async def release_stock(
@@ -64,9 +72,13 @@ async def release_stock(
         service = InventoryService(db, redis, rlock)
         result = service.release_stock(order_id)
         return {"success": True, "message": "释放成功", "data": result}
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"释放库存失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cleanup/manual")
 async def manual_cleanup(
@@ -85,10 +97,14 @@ async def manual_cleanup(
             "message": f"手动清理完成", 
             "cleaned_count": count
         }
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"手动清理失败: {str(e)}")
         db.rollback()
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cleanup/celery")
 async def celery_cleanup(batch_size: int = 500):
@@ -101,9 +117,13 @@ async def celery_cleanup(batch_size: int = 500):
             "message": "已提交异步清理任务",
             "task_id": task.id
         }
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"Celery 任务提交失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/cleanup/status/{task_id}")
 async def get_cleanup_status(task_id: str):
@@ -126,9 +146,13 @@ async def get_cleanup_status(task_id: str):
             "status": status,
             "state": task.state
         }
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"查询任务状态失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stock/{product_id}")
 async def get_stock(
@@ -146,9 +170,13 @@ async def get_stock(
             "product_id": product_id,
             "available_stock": stock
         }
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"查询库存失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/stock/batch")
 async def batch_get_stocks(
@@ -165,6 +193,10 @@ async def batch_get_stocks(
             "success": True,
             "data": stocks
         }
+    except HTTPException:
+        # 透传 HTTPException
+        raise
     except Exception as e:
         logger.error(f"批量查询库存失败: {str(e)}")
-        return {"success": False, "message": str(e)}
+        # 未知异常统一抛 500
+        raise HTTPException(status_code=500, detail=str(e))

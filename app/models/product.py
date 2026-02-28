@@ -6,6 +6,7 @@ from sqlalchemy import (
     text,
     Index,
 )
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 
@@ -43,6 +44,10 @@ class Product(Base):
         nullable=False,
         onupdate=text("now()"),
     )
+
+    # 关系定义
+    stocks = relationship("ProductStock", backref="product", uselist=False)
+    reservations = relationship("InventoryReservation", backref="product", lazy="select")
 
 
 # -----------------------------

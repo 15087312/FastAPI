@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     UniqueConstraint,
     Index,
+    ForeignKey,
 )
 from app.db.base import Base
 
@@ -45,6 +46,7 @@ class InventoryReservation(Base):
 
     product_id = Column(
         BigInteger,
+        ForeignKey("products.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="商品ID",

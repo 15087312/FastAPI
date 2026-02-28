@@ -16,8 +16,10 @@ class TestModels:
 
     @pytest.fixture
     def db_session(self):
-        """创建内存数据库会话"""
-        engine = create_engine("sqlite:///:memory:", echo=False)
+        """创建PostgreSQL数据库会话"""
+        # 使用PostgreSQL测试数据库
+        DATABASE_URL = "postgresql://postgres:123456@localhost:5432/mydb"
+        engine = create_engine(DATABASE_URL, echo=False)
         Base.metadata.create_all(engine)
         SessionLocal = sessionmaker(bind=engine)
         db = SessionLocal()
@@ -215,5 +217,5 @@ class TestModels:
         
         # 验证可以通过商品查询相关记录
         saved_product = db_session.query(Product).first()
-        assert len(saved_product.stocks) == 1
-        assert len(saved_product.reservations) == 2
+        assert saved_product.stocks is not None  # stocks 是单个对象
+        assert len(saved_product.reservations) == 2  # reservations 是列表

@@ -13,7 +13,9 @@ from app.core.config import settings
 @pytest.fixture
 def mock_db_session():
     """创建模拟数据库会话"""
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    # 使用测试数据库URL
+    DATABASE_URL = "postgresql://postgres:123456@localhost:5432/mydb"
+    engine = create_engine(DATABASE_URL, echo=False)
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()

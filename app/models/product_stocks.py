@@ -7,6 +7,7 @@ from sqlalchemy import (
     TIMESTAMP,
     text,
 )
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 

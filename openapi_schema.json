@@ -1,0 +1,725 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "库存微服务 API",
+    "description": "专业的库存管理微服务，支持高并发环境下的库存安全管理，防止超卖问题。\n\n## 🚀 核心特性\n\n- **防超卖保障** - PostgreSQL 行级锁 + Redis 分布式锁双重保护\n- **高性能缓存** - Redis 缓存层加速读取，支持批量操作\n- **多层架构** - API / Celery / CLI 三种调用方式\n- **完整审计** - 详细的操作日志和状态追踪\n- **幂等保证** - 基于 Redis 的请求去重机制\n- **优雅降级** - Redis 故障时自动降级到数据库模式\n\n## 📚 文档说明\n\n- **基础路径**: `/api/v1`\n- **健康检查**: `GET /health`\n- **API文档**: `GET /docs` (Swagger UI)\n- **ReDoc文档**: `GET /redoc` (ReDoc UI)\n\n## 🔧 错误码说明\n\n- `200`: 请求成功\n- `400`: 请求参数错误\n- `404`: 资源未找到\n- `422`: 请求验证失败\n- `429`: 请求过于频繁\n- `500`: 服务器内部错误\n",
+    "termsOfService": "https://example.com/terms/",
+    "contact": {
+      "name": "库存微服务团队",
+      "url": "https://github.com/your-org/inventory-service",
+      "email": "inventory@example.com"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api/v1",
+      "description": "开发环境"
+    },
+    {
+      "url": "https://api.example.com/api/v1",
+      "description": "生产环境"
+    }
+  ],
+  "paths": {
+    "/api/v1/inventory/reserve": {
+      "post": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "预占库存",
+        "description": "预占指定商品的库存数量，防止超卖。\n    \n    **特点：**\n    - 使用数据库行级锁确保原子性\n    - 支持分布式锁防止并发冲突\n    - 15分钟后自动过期\n    - 幂等性保证\n    \n    **使用场景：**\n    - 用户下单时预占库存\n    - 购物车结算时锁定商品",
+        "operationId": "reserve_stock_api_v1_inventory_reserve_post",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "商品ID",
+              "title": "Product Id"
+            },
+            "description": "商品ID",
+            "example": 1
+          },
+          {
+            "name": "quantity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "预占数量",
+              "title": "Quantity"
+            },
+            "description": "预占数量",
+            "example": 2
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "订单ID",
+              "title": "Order Id"
+            },
+            "description": "订单ID",
+            "example": "ORD202401010001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "预占成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "预占成功",
+                  "data": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "库存不足或重复预占",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "insufficient_stock": {
+                    "summary": "库存不足",
+                    "value": {
+                      "success": false,
+                      "message": "库存不足"
+                    }
+                  },
+                  "duplicate_reservation": {
+                    "summary": "重复预占",
+                    "value": {
+                      "success": false,
+                      "message": "该订单已预占此商品"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源未找到"
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/confirm/{order_id}": {
+      "post": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "确认库存扣减",
+        "description": "确认预占的库存，实际扣减商品库存。\n    \n    **使用场景：**\n    - 用户支付成功后确认订单\n    - 系统自动确认超时订单\n    \n    **注意：**\n    - 只能确认状态为RESERVED的预占记录\n    - 确认后预占状态变为CONFIRMED",
+        "operationId": "confirm_stock_api_v1_inventory_confirm__order_id__post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "订单ID",
+              "title": "Order Id"
+            },
+            "description": "订单ID",
+            "example": "ORD202401010001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "确认成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "确认成功",
+                  "data": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "未找到有效的预占记录",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "message": "未找到有效的预占记录"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/release/{order_id}": {
+      "post": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "释放预占库存",
+        "description": "释放预占的库存，归还给可用库存。\n    \n    **使用场景：**\n    - 用户取消订单\n    - 订单超时未支付\n    - 系统自动释放过期预占\n    \n    **效果：**\n    - 增加可用库存\n    - 减少预占库存\n    - 更新预占状态为RELEASED",
+        "operationId": "release_stock_api_v1_inventory_release__order_id__post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "订单ID",
+              "title": "Order Id"
+            },
+            "description": "订单ID",
+            "example": "ORD202401010001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "释放成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "释放成功",
+                  "data": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "未找到有效的预占记录",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "message": "未找到有效的预占记录"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cleanup/manual": {
+      "post": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "Manual Cleanup",
+        "description": "手动触发清理任务（方式二：API 直接调用 Service）",
+        "operationId": "manual_cleanup_api_v1_inventory_cleanup_manual_post",
+        "parameters": [
+          {
+            "name": "batch_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 500,
+              "title": "Batch Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "资源未找到"
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cleanup/celery": {
+      "post": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "Celery Cleanup",
+        "description": "触发 Celery 异步清理任务（方式三：Celery 调用）",
+        "operationId": "celery_cleanup_api_v1_inventory_cleanup_celery_post",
+        "parameters": [
+          {
+            "name": "batch_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 500,
+              "title": "Batch Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "资源未找到"
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cleanup/status/{task_id}": {
+      "get": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "Get Cleanup Status",
+        "description": "查询 Celery 任务执行状态",
+        "operationId": "get_cleanup_status_api_v1_inventory_cleanup_status__task_id__get",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "资源未找到"
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/stock/{product_id}": {
+      "get": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "查询商品库存",
+        "description": "查询指定商品的可用库存数量。\n    \n    **缓存策略：**\n    - 首先查询Redis缓存\n    - 缓存未命中则查询数据库\n    - 查询结果缓存5分钟\n    \n    **性能优化：**\n    - 90%+的请求可直接从缓存获取\n    - 响应时间通常小于50ms",
+        "operationId": "get_stock_api_v1_inventory_stock__product_id__get",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "商品ID",
+              "title": "Product Id"
+            },
+            "description": "商品ID",
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "product_id": 1,
+                  "available_stock": 100
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "资源未找到"
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/stock/batch": {
+      "post": {
+        "tags": [
+          "库存管理"
+        ],
+        "summary": "批量查询商品库存",
+        "description": "批量查询多个商品的库存数量。\n    \n    **优势：**\n    - 单次请求查询多个商品\n    - Redis管道优化批量操作\n    - 减少网络往返次数\n    \n    **限制：**\n    - 单次最多查询100个商品\n    - 建议按业务场景合理分批",
+        "operationId": "batch_get_stocks_api_v1_inventory_stock_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchStockQueryRequest",
+                "description": "批量查询请求参数"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "批量查询成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "1": 100,
+                    "2": 50,
+                    "3": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误"
+          },
+          "404": {
+            "description": "资源未找到"
+          },
+          "422": {
+            "description": "请求验证失败"
+          },
+          "429": {
+            "description": "请求过于频繁"
+          },
+          "500": {
+            "description": "服务器内部错误"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "健康检查",
+        "description": "检查服务是否正常运行",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "服务健康",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                },
+                "example": {
+                  "status": "healthy",
+                  "service": "inventory-microservice",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "API 根路径",
+        "description": "API服务的根路径信息",
+        "operationId": "read_root__get",
+        "responses": {
+          "200": {
+            "description": "成功返回",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Read Root  Get"
+                },
+                "example": {
+                  "message": "欢迎使用库存微服务",
+                  "docs": "/docs",
+                  "health": "/health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BatchStockQueryRequest": {
+        "properties": {
+          "product_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Product Ids",
+            "description": "商品ID列表",
+            "example": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "product_ids"
+        ],
+        "title": "BatchStockQueryRequest",
+        "description": "批量查询库存请求"
+      },
+      "BatchStockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "请求是否成功"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "响应消息"
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Data",
+            "description": "商品ID到库存数量的映射"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "title": "BatchStockResponse",
+        "description": "批量库存查询响应"
+      },
+      "OperationResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "请求是否成功"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "响应消息"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "操作结果"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "OperationResponse",
+        "description": "操作响应（预占、确认、释放）"
+      },
+      "StockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "请求是否成功"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "响应消息"
+          },
+          "product_id": {
+            "type": "integer",
+            "title": "Product Id",
+            "description": "商品ID"
+          },
+          "available_stock": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Available Stock",
+            "description": "可用库存数量"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "product_id",
+          "available_stock"
+        ],
+        "title": "StockResponse",
+        "description": "单个商品库存响应"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "库存管理",
+      "description": "库存预占、确认、释放等核心操作"
+    },
+    {
+      "name": "库存查询",
+      "description": "库存数量查询接口"
+    },
+    {
+      "name": "任务管理",
+      "description": "清理任务和异步任务管理"
+    }
+  ]
+}

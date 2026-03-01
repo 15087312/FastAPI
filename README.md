@@ -55,8 +55,123 @@ uvicorn app.main:app --reload
 
 ### 四、 访问应用
 - **API 文档**: http://localhost:8000/docs
+- **ReDoc 文档**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
 - **健康检查**: http://localhost:8000/
 - **pgAdmin**: http://localhost:5050
+
+### 五、OpenAPI 功能特性
+
+#### 自动生成的 API 文档
+项目集成了完整的 OpenAPI 3.0 规范支持，提供：
+
+- **Swagger UI 界面** - 交互式 API 测试界面
+- **ReDoc 文档** - 美观的静态文档界面  
+- **JSON 规范导出** - 标准 OpenAPI 3.0 JSON 格式
+
+#### 核心 API 端点
+- `POST /api/v1/inventory/reserve` - 预占库存
+- `POST /api/v1/inventory/confirm/{order_id}` - 确认库存
+- `POST /api/v1/inventory/release/{order_id}` - 释放库存
+- `GET /api/v1/inventory/stock/{product_id}` - 查询单个商品库存
+- `POST /api/v1/inventory/stock/batch` - 批量查询库存
+- `POST /api/v1/inventory/cleanup/manual` - 手动清理过期预占
+- `POST /api/v1/inventory/cleanup/celery` - 异步清理任务
+- `GET /api/v1/inventory/cleanup/status/{task_id}` - 查询清理任务状态
+
+#### 文档特性
+- 完整的参数说明和数据类型验证
+- 详细的响应示例和错误码说明
+- 支持在线测试 API 接口
+- 自动生成的 Pydantic 模型文档
+
+## 🛠️ 环境配置详解
+
+### Docker Compose 配置
+项目使用 Docker Compose 管理依赖服务：
+
+```yaml
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+### 环境变量配置
+创建 `.env` 文件配置应用环境：
+
+```bash
+# 数据库配置
+DATABASE_URL=postgresql://postgres:123456@localhost:5432/mydb
+
+# Redis 配置
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# 应用配置
+APP_ENV=development
+DEBUG=True
+
+# Redis分布式锁配置
+REDIS_LOCK_TTL=10000
+```
+
+### 服务管理命令
+
+```bash
+# 启动所有服务
+docker compose up -d
+
+# 查看服务状态
+docker compose ps
+
+# 查看服务日志
+docker compose logs -f
+
+docker compose logs -f db     # 数据库日志
+docker compose logs -f redis  # Redis日志
+
+# 停止服务
+docker compose down
+
+# 停止并清除数据
+docker compose down -v
+
+# 重启特定服务
+docker compose restart db
+docker compose restart redis
+```
 
 ## 🏗️ 项目架构
 
@@ -179,6 +294,32 @@ uvicorn app.main:app --reload
 
 项目包含完整的单元测试套件，覆盖以下模块：
 
+### 综合测试
+
+项目包含全面的应用集成测试：
+
+```bash
+# 运行所有集成测试
+python run_tests.py --integration
+
+# 或直接运行测试文件
+python -m pytest tests/test_app.py -v
+
+# 运行 OpenAPI 专项测试
+python run_tests.py --openapi
+```
+
+测试覆盖内容：
+- 健康检查和基础接口
+- API 文档访问验证
+- OpenAPI Schema 完整性
+- Pydantic 模型验证
+- 库存路由注册检查
+- CORS 头部支持
+- 服务启动等待机制
+
+测试覆盖的模块：
+
 - **库存服务测试** (`tests/test_inventory_service.py`) - 核心业务逻辑
 - **路由测试** (`tests/test_inventory_router.py`) - API 接口层
 - **模型测试** (`tests/test_models.py`) - 数据模型和约束
@@ -232,8 +373,13 @@ python test_app.py http://your-server:8000
 
 1. **启动环境**: `docker compose up -d`
 2. **运行应用**: `uvicorn app.main:app --reload`
-3. **开发调试**: 使用 Swagger UI 测试接口
-4. **运行测试**: `python -m pytest tests/`
+3. **开发调试**: 
+   - 使用 Swagger UI (`/docs`) 测试接口
+   - 查看 ReDoc 文档 (`/redoc`) 
+   - 验证 OpenAPI JSON (`/openapi.json`)
+4. **运行测试**: 
+   - `python -m pytest tests/` (单元测试)
+   - `python test_openapi.py` (OpenAPI测试)
 5. **停止服务**: `docker compose down`
 
 1️⃣ `docker compose up -d`

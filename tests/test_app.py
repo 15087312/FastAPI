@@ -9,6 +9,8 @@ import time
 import json
 import sys
 from typing import Dict, Any
+import pytest
+from fastapi import FastAPI
 
 BASE_URL = "http://localhost:8000"
 API_PREFIX = "/api/v1"
@@ -155,6 +157,93 @@ class AppTester:
             self.log_result("CORS 支持", False, f"异常: {str(e)}")
             return False
     
+    def test_pydantic_schemas(self) -> bool:
+        """测试 Pydantic 模型"""
+        print("\n🔍 测试 Pydantic 模型...")
+        try:
+            from app.schemas.inventory_api import (
+                ReserveStockRequest,
+                StockResponse,
+                OperationResponse,
+                BatchStockQueryRequest
+            )
+            
+            # 测试模型创建
+            request = ReserveStockRequest(
+                product_id=1,
+                quantity=2,
+                order_id="TEST001"
+            )
+            assert request.product_id == 1
+            assert request.quantity == 2
+            assert request.order_id == "TEST001"
+            
+            response = StockResponse(
+                success=True,
+                product_id=1,
+                available_stock=100
+            )
+            assert response.success is True
+            assert response.product_id == 1
+            assert response.available_stock == 100
+            
+            self.log_result("Pydantic 模型", True, "模型验证通过")
+            return True
+            
+        except Exception as e:
+            self.log_result("Pydantic 模型", False, f"模型测试失败: {str(e)}")
+            return False
+    
+    def test_openapi_documentation(self) -> bool:
+        """测试 OpenAPI 文档完整性"""
+        print("\n🔍 测试 OpenAPI 文档完整性...")
+        try:
+            from app.main import app
+            
+            # 获取OpenAPI文档
+            openapi_schema = app.openapi()
+            
+            # 验证基本结构
+            assert "openapi" in openapi_schema
+            assert "info" in openapi_schema
+            assert "paths" in openapi_schema
+            assert "components" in openapi_schema
+            
+            # 验证基本信息
+            info = openapi_schema["info"]
+            assert info["title"] == "库存微服务 API"
+            assert "version" in info
+            
+            # 验证关键路径存在
+            paths = openapi_schema["paths"]
+            expected_paths = [
+                "/api/v1/inventory/reserve",
+                "/api/v1/inventory/confirm/",
+                "/api/v1/inventory/release/",
+                "/api/v1/inventory/stock/",
+                "/api/v1/inventory/stock/batch",
+                "/api/v1/inventory/cleanup/manual",
+                "/api/v1/inventory/cleanup/celery",
+                "/api/v1/inventory/cleanup/status/",
+                "/health",
+                "/"
+            ]
+            
+            found_count = 0
+            for expected_path in expected_paths:
+                # 处理路径参数
+                clean_path = expected_path.split("{")[0].rstrip("/")
+                matching_paths = [p for p in paths.keys() if p.startswith(clean_path)]
+                if matching_paths:
+                    found_count += 1
+            
+            self.log_result("OpenAPI 文档", True, f"找到 {found_count}/{len(expected_paths)} 个API端点")
+            return True
+            
+        except Exception as e:
+            self.log_result("OpenAPI 文档", False, f"文档测试失败: {str(e)}")
+            return False
+    
     def run_all_tests(self) -> Dict[str, Any]:
         """运行所有测试"""
         print("🚀 FastAPI Mall 应用综合测试开始")
@@ -176,7 +265,9 @@ class AppTester:
             self.test_api_docs,
             self.test_openapi_schema,
             self.test_inventory_routes_exist,
-            self.test_cors_headers
+            self.test_cors_headers,
+            self.test_pydantic_schemas,
+            self.test_openapi_documentation
         ]
         
         passed = 0

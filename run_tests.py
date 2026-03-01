@@ -91,6 +91,16 @@ def main():
         help="只运行 Celery 任务测试"
     )
     parser.add_argument(
+        "--integration",
+        action="store_true",
+        help="只运行集成测试"
+    )
+    parser.add_argument(
+        "--openapi",
+        action="store_true",
+        help="运行 OpenAPI 相关测试"
+    )
+    parser.add_argument(
         "--coverage",
         action="store_true",
         help="生成覆盖率报告"
@@ -128,6 +138,10 @@ def main():
         pattern = "tests/test_dependencies.py"
     elif args.tasks:
         pattern = "tests/test_celery_tasks.py"
+    elif args.integration:
+        pattern = "tests/test_app.py"
+    elif args.openapi:
+        pattern = "tests/test_app.py::AppTester::test_pydantic_schemas or tests/test_app.py::AppTester::test_openapi_documentation"
     else:
         pattern = None  # 运行所有测试
     

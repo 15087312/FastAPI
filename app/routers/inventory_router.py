@@ -99,21 +99,21 @@ async def reserve_stock(
     product_id: int = Query(
         ..., 
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     ),
     quantity: int = Query(
         ..., 
         gt=0,
         description="预占数量",
-        example=2
+        examples=[2]
     ),
     order_id: str = Query(
         ..., 
         min_length=1,
         max_length=64,
-        description="订单ID",
-        example="ORD202401010001"
+        description="订单 ID",
+        examples=["ORD202401010001"]
     ),
     db: Session = Depends(get_db),
     redis = Depends(get_redis),
@@ -179,8 +179,8 @@ async def reserve_stock(
 async def confirm_stock(
     order_id: str = Path(
         ..., 
-        description="订单ID",
-        example="ORD202401010001"
+        description="订单 ID",
+        examples=["ORD202401010001"]
     ),
     db: Session = Depends(get_db),
     redis = Depends(get_redis),
@@ -248,8 +248,8 @@ async def confirm_stock(
 async def release_stock(
     order_id: str = Path(
         ..., 
-        description="订单ID",
-        example="ORD202401010001"
+        description="订单 ID",
+        examples=["ORD202401010001"]
     ),
     db: Session = Depends(get_db),
     redis = Depends(get_redis),
@@ -380,8 +380,8 @@ async def get_stock(
     product_id: int = Path(
         ..., 
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     ),
     db: Session = Depends(get_db),
     redis = Depends(get_redis),

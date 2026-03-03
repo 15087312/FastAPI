@@ -222,7 +222,7 @@ uvicorn app.main:app --reload
 ## 📚 文档资源
 
 - [📘 技术文档](./技术文档.md) - 详细的架构设计和技术说明
-- [📝 API 总览](./api总览.md) - 完整的接口文档
+- [📝 API 总览](docs/api总览.md) - 完整的接口文档
 
 
 ```bash

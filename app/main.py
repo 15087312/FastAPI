@@ -62,6 +62,20 @@ async def lifespan(app: FastAPI):
         logger.warning(f"⚠️  Redis connection failed: {e}")
         logger.warning("⚠️  Application will run without Redis caching")
 
+    # 输出 API 文档地址
+    base_url = f"http://localhost:{actual_port}"
+    print("\n" + "="*60)
+    print("📖 API 文档访问地址：")
+    print("="*60)
+    print(f"  Swagger UI (交互式文档): {base_url}/docs")
+    print(f"  ReDoc (美观文档):         {base_url}/redoc")
+    print(f"  OpenAPI JSON:             {base_url}/openapi.json")
+    print(f"  健康检查：                {base_url}/health")
+    print(f"  服务配置信息：            {base_url}/config")
+    print("="*60)
+    print("💡 提示：在浏览器中打开上述地址即可查看 API 文档")
+    print("="*60 + "\n")
+
     yield
     
     # 应用关闭时的清理

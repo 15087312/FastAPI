@@ -1,3 +1,5 @@
+import sys
+import os
 from contextlib import asynccontextmanager
 import logging
 from fastapi import FastAPI
@@ -8,9 +10,13 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from sqlalchemy import text
 
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.db.session import engine
 from app.core.redis import async_redis
 from app.routers import inventory_router
+from app.core.config import settings, find_available_port, is_port_available
 
 import uvicorn
 
@@ -25,6 +31,19 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # 应用启动时的初始化
     logger.info("Starting application...")
+    
+    # 检查端口占用情况
+    actual_port = settings.PORT
+    if not is_port_available(settings.HOST, settings.PORT):
+        logger.warning(f"⚠️  Port {settings.PORT} is occupied, trying to find available port...")
+        try:
+            actual_port = find_available_port(settings.HOST, settings.PORT + 1)
+            logger.info(f"✅ Found available port: {actual_port}")
+        except RuntimeError as e:
+            logger.error(f"❌ Failed to find available port: {e}")
+            raise
+    
+    logger.info(f"Server will run on {settings.HOST}:{actual_port}")
     
     # 数据库连接检查
     try:
@@ -51,7 +70,7 @@ async def lifespan(app: FastAPI):
 # 创建 FastAPI 应用
 app = FastAPI(
     title="库存微服务 API",
-    description="""专业的库存管理微服务，支持高并发环境下的库存安全管理，防止超卖问题。
+    description=f"""专业的库存管理微服务，支持高并发环境下的库存安全管理，防止超卖问题。
 
 ## 🚀 核心特性
 
@@ -66,8 +85,8 @@ app = FastAPI(
 
 - **基础路径**: `/api/v1`
 - **健康检查**: `GET /health`
-- **API文档**: `GET /docs` (Swagger UI)
-- **ReDoc文档**: `GET /redoc` (ReDoc UI)
+- **API 文档**: `GET /docs` (Swagger UI)
+- **ReDoc 文档**: `GET /redoc` (ReDoc UI)
 
 ## 🔧 错误码说明
 
@@ -77,6 +96,9 @@ app = FastAPI(
 - `422`: 请求验证失败
 - `429`: 请求过于频繁
 - `500`: 服务器内部错误
+
+## 🌐 当前运行端口：{settings.PORT}
+如果端口被占用，系统将自动尝试使用其他可用端口。
 """,
     version="1.0.0",
     openapi_url="/openapi.json",
@@ -94,7 +116,7 @@ app = FastAPI(
     },
     servers=[
         {
-            "url": "http://localhost:8000/api/v1",
+            "url": f"http://localhost:{settings.PORT}/api/v1",
             "description": "开发环境"
         },
         {
@@ -202,7 +224,7 @@ async def health_check():
     "/",
     response_model=dict,
     summary="API 根路径",
-    description="API服务的根路径信息",
+    description="API 服务的根路径信息",
     responses={
         200: {
             "description": "成功返回",
@@ -221,21 +243,74 @@ async def health_check():
 async def read_root():
     """API 根路径
     
-    提供API服务的基本信息和入口链接。
+    提供 API 服务的基本信息和入口链接。
     """
     return {
         "message": "欢迎使用库存微服务", 
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "port": settings.PORT,
+        "host": settings.HOST,
+        "api_base_url": f"http://localhost:{settings.PORT}/api/v1"
+    }
+
+@app.get(
+    "/config",
+    response_model=dict,
+    summary="服务配置信息",
+    description="返回当前服务的配置信息，包括端口、主机等，方便前端动态获取连接地址",
+    responses={
+        200: {
+            "description": "成功返回",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "host": "0.0.0.0",
+                        "port": 8000,
+                        "api_base_url": "http://localhost:8000/api/v1",
+                        "docs_url": "/docs",
+                        "debug": True
+                    }
+                }
+            }
+        }
+    }
+)
+async def get_config():
+    """获取服务配置信息
+    
+    返回当前运行的服务配置，包括实际使用的端口和主机地址。
+    前端可以通过此接口动态获取服务地址。
+    """
+    return {
+        "host": settings.HOST,
+        "port": settings.PORT,
+        "api_base_url": f"http://{settings.HOST.replace('0.0.0.0', 'localhost')}:{settings.PORT}/api/v1",
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "debug": settings.DEBUG
     }
 
 
 
 
 if __name__ == "__main__":
+    # 检查端口是否可用，如果不可用则查找可用端口
+    host = settings.HOST
+    port = settings.PORT
+    
+    if not is_port_available(host, port):
+        logger.warning(f"Port {port} is occupied, trying to find available port...")
+        try:
+            port = find_available_port(host, port + 1)
+            logger.info(f"Found available port: {port}")
+        except RuntimeError as e:
+            logger.error(f"Failed to find available port: {e}")
+            raise
+    
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
+        host=host,
+        port=port,
+        reload=settings.DEBUG
     )

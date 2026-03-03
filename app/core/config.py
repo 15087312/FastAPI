@@ -8,15 +8,15 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", "8000"))
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     
-    # 数据库配置
+    # 数据库配置（从环境变量读取）
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "123456")
-    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "db")  # Docker 中使用 'db'
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "mydb")
     
     # Redis 配置
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")  # Docker 中使用 'redis'
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
 

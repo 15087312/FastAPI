@@ -12,8 +12,8 @@ redis>=5.0.1
 aioredis>=2.0.1
 redlock-py>=1.0.0  # 分布式锁支持
 
-# Redis 连接池和工具
-redis-py-cluster>=2.1.0  # Redis 集群支持
+# Redis 连接池和工具
+# redis-py-cluster>=2.1.0  # Redis 集群支持（已移除，与 redis>=5.0.1 冲突）
 hiredis>=2.2.0          # 高性能 Redis 协议解析
 
 # 异步任务队列

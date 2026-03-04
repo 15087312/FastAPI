@@ -100,9 +100,12 @@ def upgrade() -> None:
     
     # 5. 为 product_stocks.id 列设置序列默认值（PostgreSQL 特殊处理）
     # 注意：由于 add_column 时无法直接设置 autoincrement，需要手动创建序列并设置默认值
-    op.execute("CREATE SEQUENCE IF NOT EXISTS product_stocks_id_seq")
-    op.execute("ALTER TABLE product_stocks ALTER COLUMN id SET DEFAULT nextval('product_stocks_id_seq')")
-    op.execute("SELECT setval('product_stocks_id_seq', COALESCE((SELECT MAX(id) FROM product_stocks), 1), true)")
+    # 使用独立的事务来确保 ALTER COLUMN 生效
+    from sqlalchemy import text
+    conn = op.get_bind()
+    conn.execute(text("CREATE SEQUENCE IF NOT EXISTS product_stocks_id_seq"))
+    conn.execute(text("ALTER TABLE product_stocks ALTER COLUMN id SET DEFAULT nextval('product_stocks_id_seq')"))
+    conn.execute(text("SELECT setval('product_stocks_id_seq', COALESCE((SELECT MAX(id) FROM product_stocks), 1), true)"))
     
     # 5. 删除旧类型（可选，保留旧类型以便回滚）
     # op.execute("DROP TYPE inventory_change_type")

@@ -69,7 +69,7 @@ async def get_stock(
     db: Session = Depends(get_db),
     redis = Depends(get_redis),
     rlock = Depends(get_redlock)
-):
+                        ):
     """查询商品库存（支持多仓库）"""
     try:
         service = InventoryService(db, redis, rlock)

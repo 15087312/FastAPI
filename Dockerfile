@@ -26,7 +26,7 @@ RUN pip install --upgrade pip && \
 # ============================================
 # 开发阶段
 # ============================================
-FROM base as development
+FROM base AS development
 
 # 复制项目代码
 COPY . .
@@ -44,7 +44,7 @@ CMD ["python", "app/main.py"]
 # ============================================
 # 生产环境优化
 # ============================================
-FROM base as production
+FROM base AS production
 
 # 创建非 root 用户
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser

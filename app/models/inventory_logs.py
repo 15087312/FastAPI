@@ -12,13 +12,19 @@ from sqlalchemy import (
 )
 from app.db.base import Base
 
-# 1定义库存变更类型（数据库 ENUM）
+
 class ChangeType(str, enum.Enum):
-    RESERVE = "RESERVE"   # 预占库存
-    CONFIRM = "CONFIRM"   # 确认扣减
-    RELEASE = "RELEASE"   # 释放库存
-    ADJUST = "ADJUST"     # 人工调整
-# 2️库存日志表
+    RESERVE = "RESERVE"      # 预占库存
+    CONFIRM = "CONFIRM"      # 确认扣减
+    RELEASE = "RELEASE"       # 释放库存
+    ADJUST = "ADJUST"        # 人工调整
+    INCREASE = "INCREASE"    # 入库/补货
+    FREEZE = "FREEZE"         # 冻结库存
+    UNFREEZE = "UNFREEZE"    # 解冻库存
+    BATCH_RESERVE = "BATCH_RESERVE"  # 批量预占
+    BATCH_RELEASE = "BATCH_RELEASE"  # 批量释放
+
+
 class InventoryLog(Base):
     __tablename__ = "inventory_logs"
 
@@ -26,6 +32,13 @@ class InventoryLog(Base):
         BigInteger,
         primary_key=True,
         autoincrement=True,
+    )
+
+    warehouse_id = Column(
+        String(32),
+        nullable=True,
+        index=True,
+        comment="仓库ID（可选，用于多仓场景）",
     )
 
     product_id = Column(
@@ -45,7 +58,7 @@ class InventoryLog(Base):
     change_type = Column(
         Enum(
             ChangeType,
-            name="inventory_change_type",  # 重要！PostgreSQL ENUM 类型名
+            name="inventory_change_type",
             create_type=True,
         ),
         nullable=False,
@@ -70,11 +83,46 @@ class InventoryLog(Base):
         comment="变更后可用库存",
     )
 
+    before_reserved = Column(
+        Integer,
+        nullable=False,
+        server_default="0",
+        comment="变更前预占库存",
+    )
+
+    after_reserved = Column(
+        Integer,
+        nullable=False,
+        server_default="0",
+        comment="变更后预占库存",
+    )
+
+    before_frozen = Column(
+        Integer,
+        nullable=False,
+        server_default="0",
+        comment="变更前冻结库存",
+    )
+
+    after_frozen = Column(
+        Integer,
+        nullable=False,
+        server_default="0",
+        comment="变更后冻结库存",
+    )
+
+    remark = Column(
+        String(255),
+        nullable=True,
+        comment="备注（如调整原因）",
+    )
+
     created_at = Column(
         TIMESTAMP(timezone=True),
         server_default=text("now()"),
         nullable=False,
     )
+
     operator = Column(
         String(64),
         nullable=True,
@@ -84,14 +132,23 @@ class InventoryLog(Base):
     source = Column(
         String(50),
         nullable=True,
-        comment="来源：order_service / manual / webhook",
+        comment="来源：order_service / manual / webhook / system",
     )
-
-# 3️组合索引（高频查询优化）
 
 
 Index(
     "idx_inventory_logs_product_created_desc",
     InventoryLog.product_id,
     InventoryLog.created_at.desc(),
+)
+
+Index(
+    "idx_inventory_logs_warehouse_created_desc",
+    InventoryLog.warehouse_id,
+    InventoryLog.created_at.desc(),
+)
+
+Index(
+    "idx_inventory_logs_order_id",
+    InventoryLog.order_id,
 )

@@ -61,21 +61,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️  Redis connection failed: {e}")
         logger.warning("⚠️  Application will run without Redis caching")
-
-    # 输出 API 文档地址
-    base_url = f"http://localhost:{actual_port}"
-    print("\n" + "="*60)
-    print("📖 API 文档访问地址：")
-    print("="*60)
-    print(f"  Swagger UI (交互式文档): {base_url}/docs")
-    print(f"  ReDoc (美观文档):         {base_url}/redoc")
-    print(f"  OpenAPI JSON:             {base_url}/openapi.json")
-    print(f"  健康检查：                {base_url}/health")
-    print(f"  服务配置信息：            {base_url}/config")
-    print("="*60)
-    print("💡 提示：在浏览器中打开上述地址即可查看 API 文档")
-    print("="*60 + "\n")
-
     yield
     
     # 应用关闭时的清理
@@ -85,35 +70,34 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="库存微服务 API",
     description=f"""专业的库存管理微服务，支持高并发环境下的库存安全管理，防止超卖问题。
-
-## 🚀 核心特性
-
-- **防超卖保障** - PostgreSQL 行级锁 + Redis 分布式锁双重保护
-- **高性能缓存** - Redis 缓存层加速读取，支持批量操作
-- **多层架构** - API / Celery / CLI 三种调用方式
-- **完整审计** - 详细的操作日志和状态追踪
-- **幂等保证** - 基于 Redis 的请求去重机制
-- **优雅降级** - Redis 故障时自动降级到数据库模式
-
-## 📚 文档说明
-
-- **基础路径**: `/api/v1`
-- **健康检查**: `GET /health`
-- **API 文档**: `GET /docs` (Swagger UI)
-- **ReDoc 文档**: `GET /redoc` (ReDoc UI)
-
-## 🔧 错误码说明
-
-- `200`: 请求成功
-- `400`: 请求参数错误
-- `404`: 资源未找到
-- `422`: 请求验证失败
-- `429`: 请求过于频繁
-- `500`: 服务器内部错误
-
-## 🌐 当前运行端口：{settings.PORT}
-如果端口被占用，系统将自动尝试使用其他可用端口。
-""",
+                    
+                    ## 🚀 核心特性
+                    
+                    - **防超卖保障** - PostgreSQL 行级锁 + Redis 分布式锁双重保护
+                    - **高性能缓存** - Redis 缓存层加速读取，支持批量操作
+                    - **多层架构** - API / Celery / CLI 三种调用方式
+                    - **完整审计** - 详细的操作日志和状态追踪
+                    - **幂等保证** - 基于 Redis 的请求去重机制
+                    - **优雅降级** - Redis 故障时自动降级到数据库模式
+                    
+                    ## 📚 文档说明
+                    
+                    - **基础路径**: `/api/v1`
+                    - **健康检查**: `GET /health`
+                    - **API 文档**: `GET /docs` (Swagger UI)
+                    - **ReDoc 文档**: `GET /redoc` (ReDoc UI)
+                    
+                    ## 🔧 错误码说明
+                    
+                    - `200`: 请求成功
+                    - `400`: 请求参数错误
+                    - `404`: 资源未找到
+                    - `422`: 请求验证失败
+                    - `429`: 请求过于频繁
+                    - `500`: 服务器内部错误
+                    
+                    ## 🌐 当前运行端口：{settings.PORT}
+                    如果端口被占用，系统将自动尝试使用其他可用端口。""",
     version="1.0.0",
     openapi_url="/openapi.json",
     docs_url="/docs",

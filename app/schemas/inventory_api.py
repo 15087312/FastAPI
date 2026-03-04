@@ -1,7 +1,7 @@
 """库存API专用的Pydantic模型和响应格式"""
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional
 from enum import Enum
 
 
@@ -46,6 +46,13 @@ class ReserveStockRequest(BaseModel):
 
 class BatchStockQueryRequest(BaseModel):
     """批量查询库存请求"""
+    warehouse_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="仓库ID",
+        example="WH01"
+    )
     product_ids: List[int] = Field(
         ...,
         min_items=1,
@@ -66,6 +73,213 @@ class CleanupRequest(BaseModel):
     )
 
 
+class IncreaseStockRequest(BaseModel):
+    """入库/补货请求"""
+    warehouse_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="仓库ID",
+        example="WH01"
+    )
+    product_id: int = Field(
+        ...,
+        gt=0,
+        description="商品ID",
+        example=1
+    )
+    quantity: int = Field(
+        ...,
+        gt=0,
+        description="入库数量",
+        example=100
+    )
+    order_id: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="入库单号（可选）",
+        example="RK202401010001"
+    )
+    operator: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="操作人",
+        example="admin"
+    )
+    remark: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="备注",
+        example="常规补货"
+    )
+
+
+class AdjustStockRequest(BaseModel):
+    """库存调整请求"""
+    warehouse_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="仓库ID",
+        example="WH01"
+    )
+    product_id: int = Field(
+        ...,
+        gt=0,
+        description="商品ID",
+        example=1
+    )
+    adjust_type: str = Field(
+        ...,
+        description="调整类型: increase(增加) / decrease(减少) / set(设置为)",
+        example="increase"
+    )
+    quantity: int = Field(
+        ...,
+        gt=0,
+        description="调整数量",
+        example=10
+    )
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="调整原因",
+        example="盘点修正"
+    )
+    operator: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="操作人",
+        example="admin"
+    )
+
+
+class FreezeStockRequest(BaseModel):
+    """冻结库存请求"""
+    warehouse_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="仓库ID",
+        example="WH01"
+    )
+    product_id: int = Field(
+        ...,
+        gt=0,
+        description="商品ID",
+        example=1
+    )
+    quantity: int = Field(
+        ...,
+        gt=0,
+        description="冻结数量",
+        example=5
+    )
+    reason: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="冻结原因",
+        example="待检品"
+    )
+    operator: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="操作人",
+        example="admin"
+    )
+
+
+class UnfreezeStockRequest(BaseModel):
+    """解冻库存请求"""
+    warehouse_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="仓库ID",
+        example="WH01"
+    )
+    product_id: int = Field(
+        ...,
+        gt=0,
+        description="商品ID",
+        example=1
+    )
+    quantity: int = Field(
+        ...,
+        gt=0,
+        description="解冻数量",
+        example=5
+    )
+    reason: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="解冻原因",
+        example="检验通过"
+    )
+    operator: Optional[str] = Field(
+        None,
+        max_length=64,
+        description="操作人",
+        example="admin"
+    )
+
+
+class BatchReserveItem(BaseModel):
+    """批量预占单项"""
+    warehouse_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="仓库ID",
+        example="WH01"
+    )
+    product_id: int = Field(
+        ...,
+        gt=0,
+        description="商品ID",
+        example=1
+    )
+    quantity: int = Field(
+        ...,
+        gt=0,
+        description="预占数量",
+        example=2
+    )
+
+
+class BatchReserveRequest(BaseModel):
+    """批量预占请求"""
+    order_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description="订单ID",
+        example="ORD202401010001"
+    )
+    items: List[BatchReserveItem] = Field(
+        ...,
+        min_items=1,
+        max_items=100,
+        description="预占商品列表",
+        example=[
+            {"warehouse_id": "WH01", "product_id": 1, "quantity": 2},
+            {"warehouse_id": "WH01", "product_id": 2, "quantity": 3}
+        ]
+    )
+
+
+class BatchReleaseRequest(BaseModel):
+    """批量释放请求"""
+    order_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description="订单ID",
+        example="ORD202401010001"
+    )
+
+
 # ==================== 响应模型 ====================
 
 class BaseResponse(BaseModel):
@@ -82,6 +296,10 @@ class BaseResponse(BaseModel):
 
 class StockResponse(BaseResponse):
     """单个商品库存响应"""
+    warehouse_id: Optional[str] = Field(
+        None,
+        description="仓库ID"
+    )
     product_id: int = Field(
         ...,
         description="商品ID"
@@ -89,7 +307,27 @@ class StockResponse(BaseResponse):
     available_stock: int = Field(
         ...,
         ge=0,
-        description="可用库存数量"
+        description="可用库存"
+    )
+    reserved_stock: int = Field(
+        0,
+        description="预占库存"
+    )
+    frozen_stock: int = Field(
+        0,
+        description="冻结库存"
+    )
+    in_transit_stock: int = Field(
+        0,
+        description="在途库存"
+    )
+    safety_stock: int = Field(
+        0,
+        description="安全库存"
+    )
+    total_stock: int = Field(
+        0,
+        description="总库存（可用+预占+冻结+在途）"
     )
 
 
@@ -115,6 +353,138 @@ class CleanupResponse(BaseResponse):
         None,
         ge=0,
         description="清理的记录数量"
+    )
+
+
+class IncreaseStockResponse(BaseResponse):
+    """入库响应"""
+    warehouse_id: Optional[str] = Field(
+        None,
+        description="仓库ID"
+    )
+    product_id: Optional[int] = Field(
+        None,
+        description="商品ID"
+    )
+    before_stock: Optional[int] = Field(
+        None,
+        description="入库前库存"
+    )
+    after_stock: Optional[int] = Field(
+        None,
+        description="入库后库存"
+    )
+
+
+class AdjustStockResponse(BaseResponse):
+    """库存调整响应"""
+    warehouse_id: Optional[str] = Field(
+        None,
+        description="仓库ID"
+    )
+    product_id: Optional[int] = Field(
+        None,
+        description="商品ID"
+    )
+    before_available: Optional[int] = Field(
+        None,
+        description="调整前可用库存"
+    )
+    after_available: Optional[int] = Field(
+        None,
+        description="调整后可用库存"
+    )
+
+
+class FreezeStockResponse(BaseResponse):
+    """冻结/解冻响应"""
+    warehouse_id: Optional[str] = Field(
+        None,
+        description="仓库ID"
+    )
+    product_id: Optional[int] = Field(
+        None,
+        description="商品ID"
+    )
+    before_frozen: Optional[int] = Field(
+        None,
+        description="操作前冻结库存"
+    )
+    after_frozen: Optional[int] = Field(
+        None,
+        description="操作后冻结库存"
+    )
+
+
+class BatchReserveItemResponse(BaseModel):
+    """批量预占单项响应"""
+    warehouse_id: str
+    product_id: int
+    success: bool
+    message: str
+
+
+class BatchReserveResponse(BaseResponse):
+    """批量预占响应"""
+    order_id: Optional[str] = Field(
+        None,
+        description="订单ID"
+    )
+    total_items: Optional[int] = Field(
+        None,
+        description="总商品数"
+    )
+    success_items: Optional[int] = Field(
+        None,
+        description="成功商品数"
+    )
+    failed_items: Optional[int] = Field(
+        None,
+        description="失败商品数"
+    )
+    details: Optional[List[BatchReserveItemResponse]] = Field(
+        None,
+        description="详细结果"
+    )
+
+
+class InventoryLogsQueryRequest(BaseModel):
+    """库存流水查询请求"""
+    warehouse_id: Optional[str] = Field(
+        None,
+        description="仓库ID（可选）"
+    )
+    product_id: Optional[int] = Field(
+        None,
+        gt=0,
+        description="商品ID（可选）"
+    )
+    order_id: Optional[str] = Field(
+        None,
+        description="订单ID（可选）"
+    )
+    change_type: Optional[str] = Field(
+        None,
+        description="变更类型（可选）"
+    )
+    start_date: Optional[str] = Field(
+        None,
+        description="开始时间（ISO格式）"
+    )
+    end_date: Optional[str] = Field(
+        None,
+        description="结束时间（ISO格式）"
+    )
+    page: int = Field(
+        1,
+        ge=1,
+        description="页码"
+    )
+    page_size: int = Field(
+        50,
+        ge=1,
+        le=100,
+        description="每页数量"
     )
 
 
@@ -147,15 +517,64 @@ class TaskStatusResponse(BaseModel):
 class InventoryLogDetail(BaseModel):
     """库存变更日志详情"""
     id: int
+    warehouse_id: Optional[str] = Field(
+        None,
+        description="仓库ID"
+    )
     product_id: int
     order_id: Optional[str]
     change_type: str
     quantity: int
     before_available: int
     after_available: int
+    before_reserved: int = Field(
+        0,
+        description="变更前预占库存"
+    )
+    after_reserved: int = Field(
+        0,
+        description="变更后预占库存"
+    )
+    before_frozen: int = Field(
+        0,
+        description="变更前冻结库存"
+    )
+    after_frozen: int = Field(
+        0,
+        description="变更后冻结库存"
+    )
+    remark: Optional[str] = Field(
+        None,
+        description="备注"
+    )
     created_at: str
     operator: Optional[str]
     source: Optional[str]
+
+
+class PaginatedLogsResponse(BaseModel):
+    """分页库存流水响应"""
+    success: bool = True
+    data: List[InventoryLogDetail] = Field(
+        ...,
+        description="日志列表"
+    )
+    total: int = Field(
+        ...,
+        description="总记录数"
+    )
+    page: int = Field(
+        ...,
+        description="当前页码"
+    )
+    page_size: int = Field(
+        ...,
+        description="每页数量"
+    )
+    total_pages: int = Field(
+        ...,
+        description="总页数"
+    )
 
 
 class ReservationDetail(BaseModel):

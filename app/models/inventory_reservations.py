@@ -15,18 +15,12 @@ from sqlalchemy import (
 from app.db.base import Base
 
 
-
-# 1️ 预占状态枚举（数据库 ENUM）
-
 class ReservationStatus(str, enum.Enum):
     RESERVED = "RESERVED"     # 已预占
-    CONFIRMED = "CONFIRMED"   # 已确认扣减
-    RELEASED = "RELEASED"     # 已释放
-    CANCELED = "CANCELED"     # 取消（可选扩展）
+    CONFIRMED = "CONFIRMED"    # 已确认扣减
+    RELEASED = "RELEASED"      # 已释放
+    CANCELED = "CANCELED"      # 取消
 
-
-
-# 2️ 预占表
 
 class InventoryReservation(Base):
     __tablename__ = "inventory_reservations"
@@ -35,6 +29,13 @@ class InventoryReservation(Base):
         BigInteger,
         primary_key=True,
         autoincrement=True,
+    )
+
+    warehouse_id = Column(
+        String(32),
+        nullable=False,
+        index=True,
+        comment="仓库ID",
     )
 
     order_id = Column(
@@ -81,28 +82,31 @@ class InventoryReservation(Base):
         onupdate=text("now()"),
         nullable=False,
     )
-    
+
     expired_at = Column(
         TIMESTAMP(timezone=True),
         nullable=True,
         comment="预占过期时间",
     )
 
-    # 同一订单同一商品只能有一条预占记录
     __table_args__ = (
         UniqueConstraint(
+            "warehouse_id",
             "order_id",
             "product_id",
-            name="uq_order_product",
+            name="uq_warehouse_order_product",
         ),
     )
 
 
-
-# 3️ 高频查询优化索引
-
 Index(
     "idx_reservation_product_status",
     InventoryReservation.product_id,
+    InventoryReservation.status,
+)
+
+Index(
+    "idx_reservation_warehouse_status",
+    InventoryReservation.warehouse_id,
     InventoryReservation.status,
 )

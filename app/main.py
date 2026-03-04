@@ -114,11 +114,11 @@ app = FastAPI(
     },
     servers=[
         {
-            "url": f"http://localhost:{settings.PORT}/api/v1",
+            "url": f"http://localhost:{settings.PORT}",
             "description": "开发环境"
         },
         {
-            "url": "https://api.example.com/api/v1",
+            "url": "https://api.example.com",
             "description": "生产环境"
         }
     ],
@@ -149,7 +149,7 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(inventory_router.router, prefix="/api/v1")
+app.include_router(inventory_router.router)
 
 # 全局异常处理
 @app.exception_handler(RequestValidationError)
@@ -250,43 +250,6 @@ async def read_root():
         "port": settings.PORT,
         "host": settings.HOST,
         "api_base_url": f"http://localhost:{settings.PORT}/api/v1"
-    }
-
-@app.get(
-    "/config",
-    response_model=dict,
-    summary="服务配置信息",
-    description="返回当前服务的配置信息，包括端口、主机等，方便前端动态获取连接地址",
-    responses={
-        200: {
-            "description": "成功返回",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "host": "0.0.0.0",
-                        "port": 8000,
-                        "api_base_url": "http://localhost:8000/api/v1",
-                        "docs_url": "/docs",
-                        "debug": True
-                    }
-                }
-            }
-        }
-    }
-)
-async def get_config():
-    """获取服务配置信息
-    
-    返回当前运行的服务配置，包括实际使用的端口和主机地址。
-    前端可以通过此接口动态获取服务地址。
-    """
-    return {
-        "host": settings.HOST,
-        "port": settings.PORT,
-        "api_base_url": f"http://{settings.HOST.replace('0.0.0.0', 'localhost')}:{settings.PORT}/api/v1",
-        "docs_url": "/docs",
-        "health_url": "/health",
-        "debug": settings.DEBUG
     }
 
 

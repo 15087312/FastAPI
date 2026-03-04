@@ -4,12 +4,14 @@ services:
     image: postgres:15-alpine
     container_name: fastapi_db
     restart: always
+    env_file:
+      - .env.docker
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
       POSTGRES_DB: ${POSTGRES_DB:-mydb}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT_LOCAL:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -25,8 +27,10 @@ services:
     image: redis:7-alpine
     container_name: fastapi_redis
     restart: always
+    env_file:
+      - .env.docker
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT_LOCAL:-6379}:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -48,13 +52,15 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
+    env_file:
+      - .env.docker
     environment:
       # 数据库配置
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=123456
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-123456}
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
-      - POSTGRES_DB=mydb
+      - POSTGRES_DB=${POSTGRES_DB:-mydb}
       # Redis 配置
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -69,7 +75,7 @@ services:
       redis:
         condition: service_healthy
     volumes: []
-      # - ./app:/app/app  # 开发模式：代码热重载（已注释，使用镜像中的代码）
+      # - ./app:/app/app  # 生产环境：使用镜像中的代码，不挂载
     networks:
       - fastapi_network
     command: >

@@ -40,8 +40,12 @@ def upgrade() -> None:
     
     # === product_stocks 表改造 ===
     
-    # 1. 添加 id 主键列（自增）
-    op.add_column('product_stocks', sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False))
+    # 1. 添加 id 主键列（先添加为普通列）
+    op.add_column('product_stocks', sa.Column('id', sa.BigInteger(), nullable=False))
+    
+    # 2. 创建序列并设置为默认值
+    op.execute(sa.text("CREATE SEQUENCE product_stocks_id_seq"))
+    op.execute(sa.text("ALTER TABLE product_stocks ALTER COLUMN id SET DEFAULT nextval('product_stocks_id_seq')"))
     
     # 2. 添加 warehouse_id 列
     op.add_column('product_stocks', sa.Column('warehouse_id', sa.String(length=32), nullable=False, server_default='WH01'))
@@ -94,6 +98,12 @@ def upgrade() -> None:
     # 4. 修改 ENUM 类型列
     op.execute("ALTER TABLE inventory_logs ALTER COLUMN change_type TYPE inventory_change_type_new USING change_type::text::inventory_change_type_new")
     
+    # 5. 为 product_stocks.id 列设置序列默认值（PostgreSQL 特殊处理）
+    # 注意：由于 add_column 时无法直接设置 autoincrement，需要手动创建序列并设置默认值
+    op.execute("CREATE SEQUENCE IF NOT EXISTS product_stocks_id_seq")
+    op.execute("ALTER TABLE product_stocks ALTER COLUMN id SET DEFAULT nextval('product_stocks_id_seq')")
+    op.execute("SELECT setval('product_stocks_id_seq', COALESCE((SELECT MAX(id) FROM product_stocks), 1), true)")
+    
     # 5. 删除旧类型（可选，保留旧类型以便回滚）
     # op.execute("DROP TYPE inventory_change_type")
 
@@ -127,3 +137,6 @@ def downgrade() -> None:
     op.drop_column('product_stocks', 'warehouse_id')
     op.drop_column('product_stocks', 'id')
     op.create_primary_key('product_stocks_pkey', 'product_stocks', ['product_id'])
+    
+    # 删除序列
+    op.execute("DROP SEQUENCE IF EXISTS product_stocks_id_seq")

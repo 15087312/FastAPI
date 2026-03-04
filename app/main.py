@@ -149,7 +149,7 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(inventory_router.router)
+app.include_router(inventory_router.router, prefix="/api/v1")
 
 # 全局异常处理
 @app.exception_handler(RequestValidationError)

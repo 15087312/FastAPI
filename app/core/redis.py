@@ -30,8 +30,8 @@ class RedLockAdapter:
         """获取锁 - 返回一个可以 unlock 的对象"""
         if ttl is None:
             ttl = self._ttl
-        # Redlock 构造函数使用 expiry_time 参数（毫秒）
-        redlock_obj = Redlock(resource, self._servers, expiry_time=ttl)
+        # Redlock 构造函数使用 ttl 参数（毫秒）
+        redlock_obj = Redlock(resource, self._servers, ttl=ttl)
         if redlock_obj.acquire():
             return redlock_obj
         return None

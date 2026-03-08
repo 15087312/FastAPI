@@ -7,8 +7,6 @@
 import subprocess
 import sys
 import argparse
-import os
-from pathlib import Path
 
 
 def run_tests(test_pattern=None, verbose=False, coverage=False, parallel=False):
@@ -27,9 +25,7 @@ def run_tests(test_pattern=None, verbose=False, coverage=False, parallel=False):
         cmd.append("-v")
     else:
         cmd.extend(["-q", "--tb=short"])
-    
-    cmd.append("--disable-warnings")  # 禁用警告
-    
+
     # 并行执行选项
     if parallel:
         cmd.extend(["-n", "auto"])  # 使用 pytest-xdist 自动并行
@@ -149,17 +145,8 @@ def main():
     )
     
     args = parser.parse_args()
-    
-    # 检查是否安装了 pytest-xdist
-    if args.parallel:
-        try:
-            import pytest_xdist
-        except ImportError:
-            print("⚠️  未安装 pytest-xdist，并行模式不可用")
-            print("💡 安装命令：pip install pytest-xdist")
-            args.parallel = False
-    
-    # 如果提供了特定测试名
+        
+    # 如果提供了特定测试名，优先处理
     if args.test_name:
         if "::" not in args.test_name:
             # 自动添加测试类前缀
@@ -167,24 +154,34 @@ def main():
         else:
             test_name = f"tests/{args.test_name}"
         return run_specific_test(test_name)
-    
-    # 根据选项运行不同测试集
+        
+    # 收集所有指定的测试文件（支持多参数组合）
+    patterns = []
     if args.service:
-        pattern = "tests/test_inventory_service.py"
-    elif args.router:
-        pattern = "tests/test_inventory_router.py"
-    elif args.models:
-        pattern = "tests/test_models.py"
-    elif args.deps:
-        pattern = "tests/test_dependencies.py"
-    elif args.tasks:
-        pattern = "tests/test_celery_tasks.py"
-    elif args.integration:
-        pattern = "tests/test_app.py"
-    elif args.openapi:
-        pattern = "tests/test_app.py::AppTester::test_pydantic_schemas tests/test_app.py::AppTester::test_openapi_documentation"
+        patterns.append("tests/test_inventory_service.py")
+    if args.router:
+        patterns.append("tests/test_inventory_router.py")
+    if args.models:
+        patterns.append("tests/test_models.py")
+    if args.deps:
+        patterns.append("tests/test_dependencies.py")
+    if args.tasks:
+        patterns.append("tests/test_celery_tasks.py")
+    if args.integration:
+        patterns.append("tests/test_app.py")
+    if args.openapi:
+        patterns.extend([
+            "tests/test_app.py::AppTester::test_pydantic_schemas",
+            "tests/test_app.py::AppTester::test_openapi_documentation"
+        ])
+        
+    # 根据是否有指定测试来决定运行范围
+    if patterns:
+        # 运行指定的测试（多个文件用空格分隔）
+        pattern = " ".join(patterns)
     elif args.all:
-        pattern = None  # 运行所有测试
+        # --all 显式运行所有测试
+        pattern = None
     else:
         # 默认运行所有测试
         pattern = None

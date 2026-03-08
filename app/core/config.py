@@ -1,6 +1,10 @@
 import os
+from dotenv import load_dotenv
 import socket
 from pydantic_settings import BaseSettings
+
+# 加载 .env 文件
+load_dotenv()
 
 class Settings(BaseSettings):
     # 应用配置

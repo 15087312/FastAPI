@@ -28,13 +28,14 @@ class TestModels:
             yield db
         finally:
             db.close()
-            Base.metadata.drop_all(engine)
+            # 不删除表，因为其他测试也需要这些表
+            # Base.metadata.drop_all(engine)
 
     def test_product_model(self, db_session):
         """测试商品模型"""
-        # 创建商品
+        # 创建商品（使用唯一 SKU）
         product = Product(
-            sku="PROD001",
+            sku="TEST_PROD_001",
             name="测试商品"
         )
         db_session.add(product)
@@ -43,15 +44,15 @@ class TestModels:
         # 查询验证
         saved_product = db_session.query(Product).first()
         assert saved_product.id is not None
-        assert saved_product.sku == "PROD001"
+        assert saved_product.sku == "TEST_PROD_001"
         assert saved_product.name == "测试商品"
         assert saved_product.created_at is not None
         assert saved_product.updated_at is not None
 
     def test_product_stock_model(self, db_session):
         """测试商品库存模型"""
-        # 先创建商品
-        product = Product(sku="PROD001", name="测试商品")
+        # 先创建商品（使用唯一 SKU）
+        product = Product(sku="TEST_STOCK_002", name="测试商品")
         db_session.add(product)
         db_session.flush()
         
@@ -74,8 +75,8 @@ class TestModels:
 
     def test_inventory_reservation_model(self, db_session):
         """测试库存预占模型"""
-        # 创建商品和库存
-        product = Product(sku="PROD001", name="测试商品")
+        # 创建商品和库存（使用唯一 SKU）
+        product = Product(sku="TEST_RESV_003", name="测试商品")
         db_session.add(product)
         db_session.flush()
         
@@ -90,7 +91,7 @@ class TestModels:
         # 创建预占记录（添加 warehouse_id）
         reservation = InventoryReservation(
             warehouse_id="WH001",
-            order_id="ORDER001",
+            order_id="TEST_ORDER_003",
             product_id=product.id,
             quantity=5,
             status=ReservationStatus.RESERVED,
@@ -101,7 +102,7 @@ class TestModels:
         
         # 查询验证
         saved_reservation = db_session.query(InventoryReservation).first()
-        assert saved_reservation.order_id == "ORDER001"
+        assert saved_reservation.order_id == "TEST_ORDER_003"
         assert saved_reservation.product_id == product.id
         assert saved_reservation.quantity == 5
         assert saved_reservation.status == ReservationStatus.RESERVED
@@ -109,15 +110,15 @@ class TestModels:
 
     def test_inventory_log_model(self, db_session):
         """测试库存日志模型"""
-        # 创建商品
-        product = Product(sku="PROD001", name="测试商品")
+        # 创建商品（使用唯一 SKU）
+        product = Product(sku="TEST_LOG_004", name="测试商品")
         db_session.add(product)
         db_session.flush()
         
         # 创建日志记录
         log = InventoryLog(
             product_id=product.id,
-            order_id="ORDER001",
+            order_id="TEST_ORDER_004",
             change_type=ChangeType.RESERVE,
             quantity=-2,
             before_available=10,
@@ -131,7 +132,7 @@ class TestModels:
         # 查询验证
         saved_log = db_session.query(InventoryLog).first()
         assert saved_log.product_id == product.id
-        assert saved_log.order_id == "ORDER001"
+        assert saved_log.order_id == "TEST_ORDER_004"
         assert saved_log.change_type == ChangeType.RESERVE
         assert saved_log.quantity == -2
         assert saved_log.before_available == 10
@@ -142,15 +143,15 @@ class TestModels:
 
     def test_unique_constraints(self, db_session):
         """测试唯一约束"""
-        # 创建商品
-        product = Product(sku="PROD001", name="测试商品")
+        # 创建商品（使用唯一 SKU）
+        product = Product(sku="TEST_UNIQUE_005", name="测试商品")
         db_session.add(product)
         db_session.flush()
             
         # 创建第一条预占记录（添加 warehouse_id）
         reservation1 = InventoryReservation(
             warehouse_id="WH001",
-            order_id="ORDER001",
+            order_id="TEST_ORDER_005",
             product_id=product.id,
             quantity=2,
             status=ReservationStatus.RESERVED
@@ -161,7 +162,7 @@ class TestModels:
         # 尝试创建重复的预占记录（相同订单和商品）
         reservation2 = InventoryReservation(
             warehouse_id="WH001",
-            order_id="ORDER001",  # 相同订单 ID
+            order_id="TEST_ORDER_005",  # 相同订单 ID
             product_id=product.id,  # 相同商品 ID
             quantity=3,
             status=ReservationStatus.RESERVED
@@ -174,8 +175,8 @@ class TestModels:
 
     def test_check_constraints(self, db_session):
         """测试检查约束"""
-        # 创建商品
-        product = Product(sku="PROD001", name="测试商品")
+        # 创建商品（使用唯一 SKU）
+        product = Product(sku="TEST_CHECK_006", name="测试商品")
         db_session.add(product)
         db_session.flush()
         
@@ -193,8 +194,8 @@ class TestModels:
 
     def test_relationships(self, db_session):
         """测试模型关系"""
-        # 创建商品
-        product = Product(sku="PROD001", name="测试商品")
+        # 创建商品（使用唯一 SKU）
+        product = Product(sku="TEST_REL_007", name="测试商品")
         db_session.add(product)
         db_session.flush()
         
@@ -211,14 +212,14 @@ class TestModels:
         # 创建多个预占记录（添加 warehouse_id）
         reservation1 = InventoryReservation(
             warehouse_id="WH001",
-            order_id="ORDER001",
+            order_id="TEST_ORDER_007A",
             product_id=product.id,
             quantity=5,
             status=ReservationStatus.RESERVED
         )
         reservation2 = InventoryReservation(
             warehouse_id="WH001",
-            order_id="ORDER002",
+            order_id="TEST_ORDER_007B",
             product_id=product.id,
             quantity=3,
             status=ReservationStatus.RESERVED

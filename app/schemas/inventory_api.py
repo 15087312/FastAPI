@@ -46,13 +46,6 @@ class ReserveStockRequest(BaseModel):
 
 class BatchStockQueryRequest(BaseModel):
     """批量查询库存请求"""
-    warehouse_id: str = Field(
-        ...,
-        min_length=1,
-        max_length=32,
-        description="仓库 ID",
-        examples=["WH01"]
-    )
     product_ids: List[int] = Field(
         ...,
         min_length=1,

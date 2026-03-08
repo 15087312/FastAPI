@@ -1,10 +1,11 @@
 from logging.config import fileConfig
-
+import os
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 import app.models
 from alembic import context
 from app.db.base import Base
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -58,6 +59,18 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Construct database URL from environment variables
+    user = os.getenv("POSTGRES_USER", "postgres")
+    password = os.getenv("POSTGRES_PASSWORD", "123456")
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db = os.getenv("POSTGRES_DB", "mydb")
+    
+    database_url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+    
+    # Set the database URL in the config
+    config.set_main_option("sqlalchemy.url", database_url)
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

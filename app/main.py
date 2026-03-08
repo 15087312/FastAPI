@@ -13,6 +13,19 @@ from sqlalchemy import text
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 加载 .env 环境变量（必须在导入 config 之前）
+try:
+    from dotenv import load_dotenv
+    # 优先加载 .env 文件，如果存在的话
+    env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_file):
+        load_dotenv(env_file)
+        print(f"✅ Loaded .env file: {env_file}")
+    else:
+        print("⚠️  .env file not found, using default environment variables")
+except ImportError:
+    print("⚠️  python-dotenv not installed, skipping .env loading")
+
 from app.db.session import engine
 from app.core.redis import async_redis
 from app.routers import inventory_router

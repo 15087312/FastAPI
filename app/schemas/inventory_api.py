@@ -26,21 +26,21 @@ class ReserveStockRequest(BaseModel):
     product_id: int = Field(
         ..., 
         gt=0, 
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     )
     quantity: int = Field(
         ..., 
         gt=0, 
         description="预占数量",
-        example=2
+        examples=[2]
     )
     order_id: str = Field(
         ..., 
         min_length=1,
         max_length=64,
-        description="订单ID",
-        example="ORD202401010001"
+        description="订单 ID",
+        examples=["ORD202401010001"]
     )
 
 
@@ -50,15 +50,15 @@ class BatchStockQueryRequest(BaseModel):
         ...,
         min_length=1,
         max_length=32,
-        description="仓库ID",
-        example="WH01"
+        description="仓库 ID",
+        examples=["WH01"]
     )
     product_ids: List[int] = Field(
         ...,
-        min_items=1,
-        max_items=100,
-        description="商品ID列表",
-        example=[1, 2, 3]
+        min_length=1,
+        max_length=100,
+        description="商品 ID 列表",
+        examples=[[1, 2, 3]]
     )
 
 
@@ -69,7 +69,7 @@ class CleanupRequest(BaseModel):
         ge=1,
         le=10000,
         description="批处理大小",
-        example=500
+        examples=[500]
     )
 
 
@@ -79,38 +79,38 @@ class IncreaseStockRequest(BaseModel):
         ...,
         min_length=1,
         max_length=32,
-        description="仓库ID",
-        example="WH01"
+        description="仓库 ID",
+        examples=["WH01"]
     )
     product_id: int = Field(
         ...,
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     )
     quantity: int = Field(
         ...,
         gt=0,
         description="入库数量",
-        example=100
+        examples=[100]
     )
     order_id: Optional[str] = Field(
         None,
         max_length=64,
         description="入库单号（可选）",
-        example="RK202401010001"
+        examples=["RK202401010001"]
     )
     operator: Optional[str] = Field(
         None,
         max_length=64,
         description="操作人",
-        example="admin"
+        examples=["admin"]
     )
     remark: Optional[str] = Field(
         None,
         max_length=255,
         description="备注",
-        example="常规补货"
+        examples=["常规补货"]
     )
 
 
@@ -120,38 +120,38 @@ class AdjustStockRequest(BaseModel):
         ...,
         min_length=1,
         max_length=32,
-        description="仓库ID",
-        example="WH01"
+        description="仓库 ID",
+        examples=["WH01"]
     )
     product_id: int = Field(
         ...,
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     )
     adjust_type: str = Field(
         ...,
-        description="调整类型: increase(增加) / decrease(减少) / set(设置为)",
-        example="increase"
+        description="调整类型：increase(增加) / decrease(减少) / set(设置为)",
+        examples=["increase"]
     )
     quantity: int = Field(
         ...,
         gt=0,
         description="调整数量",
-        example=10
+        examples=[10]
     )
     reason: str = Field(
         ...,
         min_length=1,
         max_length=255,
         description="调整原因",
-        example="盘点修正"
+        examples=["盘点修正"]
     )
     operator: Optional[str] = Field(
         None,
         max_length=64,
         description="操作人",
-        example="admin"
+        examples=["admin"]
     )
 
 
@@ -161,32 +161,32 @@ class FreezeStockRequest(BaseModel):
         ...,
         min_length=1,
         max_length=32,
-        description="仓库ID",
-        example="WH01"
+        description="仓库 ID",
+        examples=["WH01"]
     )
     product_id: int = Field(
         ...,
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     )
     quantity: int = Field(
         ...,
         gt=0,
         description="冻结数量",
-        example=5
+        examples=[5]
     )
     reason: Optional[str] = Field(
         None,
         max_length=255,
         description="冻结原因",
-        example="待检品"
+        examples=["待检品"]
     )
     operator: Optional[str] = Field(
         None,
         max_length=64,
         description="操作人",
-        example="admin"
+        examples=["admin"]
     )
 
 
@@ -196,32 +196,32 @@ class UnfreezeStockRequest(BaseModel):
         ...,
         min_length=1,
         max_length=32,
-        description="仓库ID",
-        example="WH01"
+        description="仓库 ID",
+        examples=["WH01"]
     )
     product_id: int = Field(
         ...,
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     )
     quantity: int = Field(
         ...,
         gt=0,
         description="解冻数量",
-        example=5
+        examples=[5]
     )
     reason: Optional[str] = Field(
         None,
         max_length=255,
         description="解冻原因",
-        example="检验通过"
+        examples=["检验通过"]
     )
     operator: Optional[str] = Field(
         None,
         max_length=64,
         description="操作人",
-        example="admin"
+        examples=["admin"]
     )
 
 
@@ -231,20 +231,20 @@ class BatchReserveItem(BaseModel):
         ...,
         min_length=1,
         max_length=32,
-        description="仓库ID",
-        example="WH01"
+        description="仓库 ID",
+        examples=["WH01"]
     )
     product_id: int = Field(
         ...,
         gt=0,
-        description="商品ID",
-        example=1
+        description="商品 ID",
+        examples=[1]
     )
     quantity: int = Field(
         ...,
         gt=0,
         description="预占数量",
-        example=2
+        examples=[2]
     )
 
 
@@ -254,17 +254,17 @@ class BatchReserveRequest(BaseModel):
         ...,
         min_length=1,
         max_length=64,
-        description="订单ID",
-        example="ORD202401010001"
+        description="订单 ID",
+        examples=["ORD202401010001"]
     )
     items: List[BatchReserveItem] = Field(
         ...,
-        min_items=1,
-        max_items=100,
+        min_length=1,
+        max_length=100,
         description="预占商品列表",
-        example=[
-            {"warehouse_id": "WH01", "product_id": 1, "quantity": 2},
-            {"warehouse_id": "WH01", "product_id": 2, "quantity": 3}
+        examples=[
+            [{"warehouse_id": "WH01", "product_id": 1, "quantity": 2},
+            {"warehouse_id": "WH01", "product_id": 2, "quantity": 3}]
         ]
     )
 
@@ -275,8 +275,8 @@ class BatchReleaseRequest(BaseModel):
         ...,
         min_length=1,
         max_length=64,
-        description="订单ID",
-        example="ORD202401010001"
+        description="订单 ID",
+        examples=["ORD202401010001"]
     )
 
 

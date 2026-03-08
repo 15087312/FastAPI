@@ -9,21 +9,25 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     
     # 数据库配置（从环境变量读取）
+    # ⚠️ Docker 环境：POSTGRES_HOST 默认为 "db"（Docker 服务名）
+    # ⚠️ 本地环境：在 .env 文件中设置 POSTGRES_HOST=localhost
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "123456")
-    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "db")  # Docker 中使用 'db'
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "db")  # Docker 环境默认使用 db
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "mydb")
     
-    # Redis 配置
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")  # Docker 中使用 'redis'
+    # Redis 配置（从环境变量读取）
+    # ⚠️ Docker 环境：REDIS_HOST 默认为 "redis"（Docker 服务名）
+    # ⚠️ 本地环境：在 .env 文件中设置 REDIS_HOST=localhost
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")  # Docker 环境默认使用 redis
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
 
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql+psycopg2://"  # 使用 psycopg2 而非 psycopg3
+            f"postgresql+psycopg2://" 
             f"{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
             f"{self.POSTGRES_DB}"

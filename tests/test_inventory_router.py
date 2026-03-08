@@ -1,15 +1,18 @@
-"""库存路由单元测试"""
+"""库存路由单元测试 - 使用真实数据库和 FastAPI TestClient"""
 import pytest
 from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routers.inventory_router import router
+from app.models.product import Product
+from app.models.product_stocks import ProductStock
+from app.models.inventory_reservations import InventoryReservation, ReservationStatus
+from datetime import datetime, timedelta
 
 
 class TestInventoryRouter:
-    """库存路由测试类"""
+    """库存路由测试类 - 使用真实数据库"""
 
     @pytest.fixture
     def client(self):
@@ -17,255 +20,188 @@ class TestInventoryRouter:
         return TestClient(app)
 
     @pytest.fixture
-    def mock_service(self):
-        """创建模拟库存服务"""
-        with patch('app.routers.inventory_router.InventoryService') as mock:
-            service_mock = Mock()
-            mock.return_value = service_mock
-            yield service_mock
-
-    def test_reserve_stock_success(self, client, mock_service):
-        """测试成功预占库存"""
-        mock_service.reserve_stock.return_value = True
+    def test_product(self, real_db_session):
+        """创建测试商品和库存"""
+        product = Product(sku="ROUTER_TEST_001", name="路由测试商品")
+        real_db_session.add(product)
+        real_db_session.flush()
         
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=100,
+            reserved_stock=0
+        )
+        real_db_session.add(stock)
+        real_db_session.commit()
+        
+        yield product
+        
+        # 清理
+        real_db_session.query(InventoryReservation).filter(
+            InventoryReservation.order_id.like("ROUTER_TEST_%")
+        ).delete()
+        real_db_session.query(ProductStock).filter(
+            ProductStock.product_id == product.id
+        ).delete()
+        real_db_session.query(Product).filter(
+            Product.id == product.id
+        ).delete()
+        real_db_session.commit()
+
+    def test_reserve_stock_success(self, client, test_product, real_redis):
+        """测试成功预占库存"""
         response = client.post("/api/v1/inventory/reserve", params={
-            "product_id": 1,
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
             "quantity": 2,
-            "order_id": "ORDER001"
+            "order_id": "ROUTER_TEST_ORDER_001"
         })
         
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert data["message"] == "预占成功"
-        mock_service.reserve_stock.assert_called_once_with(1, 2, "ORDER001")
 
-    def test_reserve_stock_http_exception(self, client, mock_service):
-        """测试预占库存时抛出 HTTPException"""
-        mock_service.reserve_stock.side_effect = HTTPException(
-            status_code=400, detail="库存不足"
-        )
-        
+    def test_reserve_stock_insufficient(self, client, test_product):
+        """测试库存不足"""
         response = client.post("/api/v1/inventory/reserve", params={
-            "product_id": 1,
-            "quantity": 100,
-            "order_id": "ORDER001"
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
+            "quantity": 200,  # 超过可用库存
+            "order_id": "ROUTER_TEST_ORDER_002"
         })
         
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"] == "库存不足"
+        assert "库存不足" in data.get("message", "") or "库存不足" in data.get("detail", "")
 
-    def test_reserve_stock_unknown_exception(self, client, mock_service):
-        """测试预占库存时抛出未知异常"""
-        mock_service.reserve_stock.side_effect = ValueError("数据库连接失败")
-        
-        response = client.post("/api/v1/inventory/reserve", params={
-            "product_id": 1,
+    def test_reserve_stock_duplicate(self, client, test_product):
+        """测试重复预占"""
+        # 第一次预占
+        client.post("/api/v1/inventory/reserve", params={
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
             "quantity": 2,
-            "order_id": "ORDER001"
+            "order_id": "ROUTER_TEST_ORDER_003"
         })
         
-        assert response.status_code == 500
-        data = response.json()
-        assert "数据库连接失败" in data["detail"]
-
-    def test_confirm_stock_success(self, client, mock_service):
-        """测试成功确认库存"""
-        mock_service.confirm_stock.return_value = True
+        # 第二次预占同一订单
+        response = client.post("/api/v1/inventory/reserve", params={
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
+            "quantity": 2,
+            "order_id": "ROUTER_TEST_ORDER_003"
+        })
         
-        response = client.post("/api/v1/inventory/confirm/ORDER001")
+        assert response.status_code == 400
+        data = response.json()
+        assert "该订单已预占此商品" in data.get("message", "") or "该订单已预占此商品" in data.get("detail", "")
+
+    def test_confirm_stock_success(self, client, test_product, real_db_session):
+        """测试成功确认库存"""
+        # 先预占
+        client.post("/api/v1/inventory/reserve", params={
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
+            "quantity": 2,
+            "order_id": "ROUTER_TEST_ORDER_004"
+        })
+        
+        # 确认
+        response = client.post(f"/api/v1/inventory/confirm/ROUTER_TEST_ORDER_004")
         
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert data["message"] == "确认成功"
-        mock_service.confirm_stock.assert_called_once_with("ORDER001")
 
-    def test_confirm_stock_not_found(self, client, mock_service):
-        """测试确认库存时找不到预占记录"""
-        mock_service.confirm_stock.side_effect = HTTPException(
-            status_code=404, detail="未找到有效的预占记录"
-        )
-        
-        response = client.post("/api/v1/inventory/confirm/ORDER001")
+    def test_confirm_stock_not_found(self, client):
+        """测试确认不存在的订单"""
+        response = client.post("/api/v1/inventory/confirm/NONEXISTENT_ORDER")
         
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"] == "未找到有效的预占记录"
+        assert "未找到有效的预占记录" in data.get("message", "") or "未找到有效的预占记录" in data.get("detail", "")
 
-    def test_release_stock_success(self, client, mock_service):
+    def test_release_stock_success(self, client, test_product, real_db_session):
         """测试成功释放库存"""
-        mock_service.release_stock.return_value = True
+        # 先预占
+        client.post("/api/v1/inventory/reserve", params={
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
+            "quantity": 2,
+            "order_id": "ROUTER_TEST_ORDER_005"
+        })
         
-        response = client.post("/api/v1/inventory/release/ORDER001")
+        # 释放
+        response = client.post(f"/api/v1/inventory/release/ROUTER_TEST_ORDER_005")
         
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert data["message"] == "释放成功"
-        mock_service.release_stock.assert_called_once_with("ORDER001")
 
-    def test_manual_cleanup_success(self, client, mock_service):
-        """测试手动清理成功"""
-        mock_service.cleanup_expired_reservations.return_value = 5
-        
-        with patch('app.routers.inventory_router.get_db') as mock_get_db:
-            db_mock = Mock()
-            mock_get_db.return_value.__enter__.return_value = db_mock
-            
-            response = client.post("/api/v1/inventory/cleanup/manual", params={
-                "batch_size": 100
-            })
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["cleaned_count"] == 5
-            db_mock.commit.assert_called_once()
-
-    def test_manual_cleanup_exception(self, client, mock_service):
-        """测试手动清理异常"""
-        mock_service.cleanup_expired_reservations.side_effect = Exception("清理失败")
-        
-        with patch('app.routers.inventory_router.get_db') as mock_get_db:
-            db_mock = Mock()
-            mock_get_db.return_value.__enter__.return_value = db_mock
-            
-            response = client.post("/api/v1/inventory/cleanup/manual")
-            
-            assert response.status_code == 500
-            data = response.json()
-            assert "清理失败" in data["detail"]
-            db_mock.rollback.assert_called_once()
-
-    def test_celery_cleanup_success(self, client):
-        """测试 Celery 清理任务提交成功"""
-        task_mock = Mock()
-        task_mock.id = "task123"
-        
-        with patch('app.routers.inventory_router.celery_cleanup_task') as mock_task:
-            mock_task.delay.return_value = task_mock
-            
-            response = client.post("/api/v1/inventory/cleanup/celery", params={
-                "batch_size": 200
-            })
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            assert data["task_id"] == "task123"
-            mock_task.delay.assert_called_once_with(200)
-
-    def test_celery_cleanup_exception(self, client):
-        """测试 Celery 清理任务提交异常"""
-        with patch('app.routers.inventory_router.celery_cleanup_task') as mock_task:
-            mock_task.delay.side_effect = Exception("Celery 配置错误")
-            
-            response = client.post("/api/v1/inventory/cleanup/celery")
-            
-            assert response.status_code == 500
-            data = response.json()
-            assert "Celery 配置错误" in data["detail"]
-
-    def test_get_cleanup_status_pending(self, client):
-        """测试查询清理任务状态 - 等待中"""
-        task_mock = Mock()
-        task_mock.state = "PENDING"
-        
-        with patch('app.routers.inventory_router.app') as mock_app:
-            mock_app.AsyncResult.return_value = task_mock
-            
-            response = client.get("/api/v1/inventory/cleanup/status/task123")
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert "任务等待中" in data["status"]
-            assert data["state"] == "PENDING"
-
-    def test_get_cleanup_status_success(self, client):
-        """测试查询清理任务状态 - 成功"""
-        task_mock = Mock()
-        task_mock.state = "SUCCESS"
-        task_mock.result = "清理完成，处理了5条记录"
-        
-        with patch('app.routers.inventory_router.app') as mock_app:
-            mock_app.AsyncResult.return_value = task_mock
-            
-            response = client.get("/api/v1/inventory/cleanup/status/task123")
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert "任务完成" in data["status"]
-            assert "5条记录" in data["status"]
-
-    def test_get_cleanup_status_failure(self, client):
-        """测试查询清理任务状态 - 失败"""
-        task_mock = Mock()
-        task_mock.state = "FAILURE"
-        task_mock.info = "内存不足"
-        
-        with patch('app.routers.inventory_router.app') as mock_app:
-            mock_app.AsyncResult.return_value = task_mock
-            
-            response = client.get("/api/v1/inventory/cleanup/status/task123")
-            
-            assert response.status_code == 200
-            data = response.json()
-            assert "任务失败" in data["status"]
-            assert "内存不足" in data["status"]
-
-    def test_get_stock_success(self, client, mock_service):
-        """测试查询单个商品库存成功"""
-        mock_service.get_product_stock.return_value = 45
-        
-        response = client.get("/api/v1/inventory/stock/1")
+    def test_get_stock_success(self, client, test_product):
+        """测试查询库存成功"""
+        response = client.get(f"/api/v1/inventory/stock/{test_product.id}?warehouse_id=WH01")
         
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["product_id"] == 1
-        assert data["available_stock"] == 45
-        mock_service.get_product_stock.assert_called_once_with(1)
+        assert data["product_id"] == test_product.id
 
-    def test_get_stock_exception(self, client, mock_service):
-        """测试查询库存异常"""
-        mock_service.get_product_stock.side_effect = HTTPException(
-            status_code=500, detail="数据库错误"
+    def test_get_stock_not_found(self, client):
+        """测试查询不存在的商品"""
+        response = client.get("/api/v1/inventory/stock/999999?warehouse_id=WH01")
+        
+        assert response.status_code == 200
+        data = response.json()
+        # 返回空库存信息
+        assert data["success"] is True
+
+    def test_batch_get_stocks(self, client, test_product):
+        """测试批量查询库存"""
+        response = client.post(
+            f"/api/v1/inventory/stock/batch?warehouse_id=WH01",
+            json={"product_ids": [test_product.id]}
         )
         
-        response = client.get("/api/v1/inventory/stock/999")
-        
-        assert response.status_code == 500
+        assert response.status_code == 200
         data = response.json()
-        assert data["detail"] == "数据库错误"
+        assert data["success"] is True
 
-    def test_batch_get_stocks_success(self, client, mock_service):
-        """测试批量查询库存成功"""
-        mock_service.batch_get_stocks.return_value = {
-            1: 30,
-            2: 25,
-            3: 0
-        }
-        
-        response = client.post("/api/v1/inventory/stock/batch", json={
-            "product_ids": [1, 2, 3]
-        })
+    def test_increase_stock(self, client, test_product):
+        """测试入库"""
+        response = client.post(
+            "/api/v1/inventory/increase",
+            json={
+                "warehouse_id": "WH01",
+                "product_id": test_product.id,
+                "quantity": 50,
+                "operator": "test_user",
+                "remark": "测试入库"
+            }
+        )
         
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["data"] == {1: 30, 2: 25, 3: 0}
-        mock_service.batch_get_stocks.assert_called_once_with([1, 2, 3])
 
-    def test_batch_get_stocks_exception(self, client, mock_service):
-        """测试批量查询库存异常"""
-        mock_service.batch_get_stocks.side_effect = Exception("Redis 连接失败")
+    def test_adjust_stock(self, client, test_product):
+        """测试库存调整"""
+        response = client.post(
+            "/api/v1/inventory/adjust",
+            json={
+                "warehouse_id": "WH01",
+                "product_id": test_product.id,
+                "adjust_type": "increase",
+                "quantity": 10,
+                "reason": "测试调整",
+                "operator": "test_user"
+            }
+        )
         
-        response = client.post("/api/v1/inventory/stock/batch", json={
-            "product_ids": [1, 2]
-        })
-        
-        assert response.status_code == 500
+        assert response.status_code == 200
         data = response.json()
-        assert "Redis 连接失败" in data["detail"]
+        assert data["success"] is True

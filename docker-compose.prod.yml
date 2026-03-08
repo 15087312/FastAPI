@@ -55,14 +55,15 @@ services:
     env_file:
       - .env.docker
     environment:
-      # 数据库配置
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-123456}
-      - POSTGRES_HOST=db
+      # 数据库配置（覆盖 env_file 中的默认值）
+      # ⚠️ Docker 环境：必须使用 Docker 服务名 "db" 和 "redis"
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=123456
+      - POSTGRES_HOST=db              # ✅ Docker 服务名，不要修改
       - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-mydb}
+      - POSTGRES_DB=mydb
       # Redis 配置
-      - REDIS_HOST=redis
+      - REDIS_HOST=redis              # ✅ Docker 服务名，不要修改
       - REDIS_PORT=6379
       - REDIS_DB=0
       # 应用配置

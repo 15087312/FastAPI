@@ -294,37 +294,12 @@ uvicorn app.main:app --reload
 
 项目包含完整的单元测试套件，覆盖以下模块：
 
-### 综合测试
-
-项目包含全面的应用集成测试：
-
-```bash
-# 运行所有集成测试
-python run_tests.py --integration
-
-# 或直接运行测试文件
-python -m pytest tests/test_app.py -v
-
-# 运行 OpenAPI 专项测试
-python run_tests.py --openapi
-```
-
-测试覆盖内容：
-- 健康检查和基础接口
-- API 文档访问验证
-- OpenAPI Schema 完整性
-- Pydantic 模型验证
-- 库存路由注册检查
-- CORS 头部支持
-- 服务启动等待机制
-
-测试覆盖的模块：
-
 - **库存服务测试** (`tests/test_inventory_service.py`) - 核心业务逻辑
 - **路由测试** (`tests/test_inventory_router.py`) - API 接口层
 - **模型测试** (`tests/test_models.py`) - 数据模型和约束
 - **依赖注入测试** (`tests/test_dependencies.py`) - 依赖管理和注入
 - **Celery 任务测试** (`tests/test_celery_tasks.py`) - 异步任务
+- **集成测试** (`tests/test_app.py`) - 应用整体功能验证
 
 ### 运行测试
 
@@ -344,12 +319,19 @@ python run_tests.py --router     # 路由
 python run_tests.py --models     # 模型
 python run_tests.py --deps       # 依赖注入
 python run_tests.py --tasks      # Celery 任务
+python run_tests.py --integration # 集成测试
 
 # 运行特定测试函数
 python run_tests.py test_reserve_stock_success
 
 # 生成覆盖率报告
 python run_tests.py --coverage
+
+# 并行执行测试 (需要安装 pytest-xdist)
+python run_tests.py --parallel --all
+
+# 组合选项
+python run_tests.py --service --verbose --coverage
 ```
 
 ### 测试特性
@@ -358,16 +340,29 @@ python run_tests.py --coverage
 - **数据库隔离**：使用内存 SQLite 数据库进行模型测试
 - **完整覆盖**：涵盖正常流程、异常处理、边界条件
 - **快速执行**：无需启动真实服务即可运行
+- **并行支持**：支持多核并行执行测试（可选）
 
 ### 集成测试
 
 ```bash
 # 运行集成测试（需要服务运行）
-python test_app.py
+python run_tests.py --integration
 
-# 或指定基础 URL
-python test_app.py http://your-server:8000
+# 或直接运行测试文件
+python -m pytest tests/test_app.py -v
+
+# 运行 OpenAPI 相关测试
+python run_tests.py --openapi
 ```
+
+测试覆盖内容：
+- ✅ 健康检查和基础接口
+- ✅ API 文档访问验证 (Swagger UI, ReDoc)
+- ✅ OpenAPI Schema 完整性
+- ✅ Pydantic 模型验证
+- ✅ 库存路由注册检查
+- ✅ CORS 头部支持
+- ✅ 服务启动等待机制
 
 ## 🛠️ 开发工作流
 

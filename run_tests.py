@@ -8,29 +8,37 @@ import subprocess
 import sys
 import argparse
 import os
+from pathlib import Path
 
 
-def run_tests(test_pattern=None, verbose=False, coverage=False):
+def run_tests(test_pattern=None, verbose=False, coverage=False, parallel=False):
     """运行单元测试
     
     Args:
         test_pattern: 测试文件或函数模式 (如 test_*.py 或 ::test_function)
         verbose: 是否显示详细输出
         coverage: 是否生成覆盖率报告
+        parallel: 是否并行执行测试
     """
     cmd = ["python", "-m", "pytest"]
     
     # 基础参数
-    cmd.extend([
-        "tests/",
-        "-v" if verbose else "-q",
-        "--tb=short",  # 简洁的 traceback
-        "--disable-warnings",  # 禁用警告
-    ])
+    if verbose:
+        cmd.append("-v")
+    else:
+        cmd.extend(["-q", "--tb=short"])
+    
+    cmd.append("--disable-warnings")  # 禁用警告
+    
+    # 并行执行选项
+    if parallel:
+        cmd.extend(["-n", "auto"])  # 使用 pytest-xdist 自动并行
     
     # 如果指定了测试模式
     if test_pattern:
         cmd.append(test_pattern)
+    else:
+        cmd.append("tests/")
     
     # 覆盖率选项
     if coverage:
@@ -59,57 +67,81 @@ def run_specific_test(test_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="库存微服务单元测试运行器")
-    parser.add_argument(
+    parser = argparse.ArgumentParser(
+        description="库存微服务单元测试运行器",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例用法:
+  python run_tests.py --all                    # 运行所有测试
+  python run_tests.py --service --verbose      # 运行服务测试 (详细输出)
+  python run_tests.py --integration --coverage # 运行集成测试并生成覆盖率
+  python run_tests.py test_reserve_stock_success  # 运行特定测试函数
+  python run_tests.py --parallel --all         # 并行运行所有测试
+        """
+    )
+    
+    # 测试范围选项
+    scope_group = parser.add_argument_group('测试范围')
+    scope_group.add_argument(
         "--all", 
         action="store_true",
         help="运行所有测试"
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "--service",
         action="store_true",
         help="只运行库存服务测试"
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "--router",
         action="store_true",
         help="只运行路由测试"
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "--models",
         action="store_true",
         help="只运行模型测试"
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "--deps",
         action="store_true",
         help="只运行依赖注入测试"
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "--tasks",
         action="store_true",
         help="只运行 Celery 任务测试"
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "--integration",
         action="store_true",
-        help="只运行集成测试"
+        help="只运行集成测试 (test_app.py)"
     )
-    parser.add_argument(
+    
+    # 功能选项
+    feature_group = parser.add_argument_group('功能选项')
+    feature_group.add_argument(
         "--openapi",
         action="store_true",
         help="运行 OpenAPI 相关测试"
     )
-    parser.add_argument(
+    feature_group.add_argument(
         "--coverage",
         action="store_true",
         help="生成覆盖率报告"
     )
-    parser.add_argument(
+    feature_group.add_argument(
+        "--parallel",
+        action="store_true",
+        help="并行执行测试 (需要 pytest-xdist)"
+    )
+    feature_group.add_argument(
         "--verbose",
         action="store_true",
         help="详细输出模式"
     )
+    
+    # 位置参数
     parser.add_argument(
         "test_name",
         nargs="?",
@@ -117,6 +149,15 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # 检查是否安装了 pytest-xdist
+    if args.parallel:
+        try:
+            import pytest_xdist
+        except ImportError:
+            print("⚠️  未安装 pytest-xdist，并行模式不可用")
+            print("💡 安装命令：pip install pytest-xdist")
+            args.parallel = False
     
     # 如果提供了特定测试名
     if args.test_name:
@@ -141,16 +182,19 @@ def main():
     elif args.integration:
         pattern = "tests/test_app.py"
     elif args.openapi:
-        pattern = "tests/test_app.py::AppTester::test_pydantic_schemas or tests/test_app.py::AppTester::test_openapi_documentation"
-    else:
+        pattern = "tests/test_app.py::AppTester::test_pydantic_schemas tests/test_app.py::AppTester::test_openapi_documentation"
+    elif args.all:
         pattern = None  # 运行所有测试
+    else:
+        # 默认运行所有测试
+        pattern = None
     
-    success = run_tests(pattern, args.verbose, args.coverage)
-    
+    success = run_tests(pattern, args.verbose, args.coverage, args.parallel)
+        
     if args.coverage and success:
         print("\n📊 覆盖率报告已生成到 htmlcov/ 目录")
-        print("📁 查看报告: open htmlcov/index.html")
-    
+        print("📁 查看报告：open htmlcov/index.html 或 start htmlcov\\index.html")
+        
     return 0 if success else 1
 
 

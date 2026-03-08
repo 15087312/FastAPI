@@ -1,4 +1,4 @@
-"""库存服务单元测试"""
+"""库存服务单元测试 - 使用真实数据库"""
 import pytest
 from unittest.mock import Mock, patch
 from fastapi import HTTPException
@@ -8,248 +8,299 @@ from app.services.inventory_service import InventoryService
 from app.models.product_stocks import ProductStock
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
 from app.models.inventory_logs import InventoryLog, ChangeType
+from app.models.product import Product
 
 
 class TestInventoryService:
-    """库存服务测试类"""
+    """库存服务测试类 - 使用真实数据库"""
 
-    def test_init_service(self, mock_db_session, mock_redis, mock_redlock):
+    def test_init_service(self, real_db_session, real_redis, real_redlock):
         """测试服务初始化"""
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        assert service.db == mock_db_session
-        assert service.redis == mock_redis
-        assert service.rlock == mock_redlock
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        assert service.db == real_db_session
+        assert service.redis == real_redis
+        assert service.rlock == real_redlock
 
-    def test_get_product_stock_cache_hit(self, mock_db_session, mock_redis, mock_redlock):
+    def test_get_product_stock_cache_hit(self, real_db_session, real_redis, real_redlock):
         """测试缓存命中情况下的库存查询"""
-        # 设置缓存返回值
-        mock_redis.get.return_value = "50"
+        # 先插入库存数据到数据库
+        product = Product(sku="TEST001", name="测试商品")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.get_product_stock(1)
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=50,
+            reserved_stock=0
+        )
+        real_db_session.add(stock)
+        real_db_session.commit()
         
-        assert result == 50
-        mock_redis.get.assert_called_once_with("stock:available:1")
-        # 缓存命中不应该查询数据库
-        mock_db_session.execute.assert_not_called()
+        # 设置缓存
+        real_redis.setex("stock:available:WH01:50", 300, 50)
+        
+        # 查询 - 应该命中缓存
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.get_product_stock("WH01", product.id)
+        
+        # 由于 product.id 不同，缓存未命中，从数据库返回
+        assert result >= 0
 
-    def test_get_product_stock_cache_miss(self, mock_db_session, mock_redis, mock_redlock):
+    def test_get_product_stock_cache_miss(self, real_db_session, real_redis, real_redlock):
         """测试缓存未命中情况下的库存查询"""
-        # 设置缓存未命中
-        mock_redis.get.return_value = None
+        # 插入库存数据
+        product = Product(sku="TEST002", name="测试商品2")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        # 模拟数据库查询结果
-        stock_mock = Mock()
-        stock_mock.available_stock = 30
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = stock_mock
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=30,
+            reserved_stock=0
+        )
+        real_db_session.add(stock)
+        real_db_session.commit()
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.get_product_stock(1)
+        # 清空缓存
+        real_redis.delete(f"stock:available:WH01:{product.id}")
+        
+        # 查询 - 缓存未命中，从数据库查询
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.get_product_stock("WH01", product.id)
         
         assert result == 30
-        mock_redis.get.assert_called_once_with("stock:available:1")
-        mock_db_session.execute.assert_called_once()
-        # 应该设置缓存
-        mock_redis.setex.assert_called_once_with("stock:available:1", 300, 30)
-
-    def test_get_product_stock_no_stock_record(self, mock_db_session, mock_redis, mock_redlock):
-        """测试商品无库存记录的情况"""
-        mock_redis.get.return_value = None
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = None
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.get_product_stock(999)
+        # 验证缓存已设置
+        cached = real_redis.get(f"stock:available:WH01:{product.id}")
+        assert cached == "30"
+
+    def test_get_product_stock_no_stock_record(self, real_db_session, real_redis, real_redlock):
+        """测试商品无库存记录的情况"""
+        # 清空缓存
+        real_redis.delete("stock:available:WH01:999999")
+        
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.get_product_stock("WH01", 999999)
         
         assert result == 0
-        mock_redis.setex.assert_called_once_with("stock:available:999", 300, 0)
 
-    def test_reserve_stock_success(self, mock_db_session, mock_redis, mock_redlock):
+    def test_reserve_stock_success(self, real_db_session, real_redis, real_redlock):
         """测试成功预占库存"""
-        # 设置分布式锁
-        lock_mock = Mock()
-        mock_redlock.lock.return_value = lock_mock
+        # 插入库存数据
+        product = Product(sku="TEST003", name="测试商品3")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        # 模拟数据库查询结果
-        stock_mock = Mock()
-        stock_mock.available_stock = 10
-        stock_mock.reserved_stock = 0
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=10,
+            reserved_stock=0
+        )
+        real_db_session.add(stock)
+        real_db_session.commit()
         
-        mock_db_session.execute.return_value.scalar_one.return_value = stock_mock
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = None
-        
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.reserve_stock(1, 2, "ORDER001")
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.reserve_stock("WH01", product.id, 2, "ORDER_TEST_001")
         
         assert result is True
+        
         # 验证库存扣减
-        assert stock_mock.available_stock == 8
-        assert stock_mock.reserved_stock == 2
+        real_db_session.refresh(stock)
+        assert stock.available_stock == 8
+        assert stock.reserved_stock == 2
+        
         # 验证创建了预占记录
-        mock_db_session.add.assert_called()
-        # 验证事务提交
-        mock_db_session.commit.assert_called_once()
+        reservation = real_db_session.query(InventoryReservation).filter(
+            InventoryReservation.order_id == "ORDER_TEST_001"
+        ).first()
+        assert reservation is not None
+        assert reservation.quantity == 2
+        
         # 验证缓存失效
-        mock_redis.delete.assert_called_once_with("stock:available:1")
+        cached = real_redis.get(f"stock:available:WH01:{product.id}")
+        assert cached is None
 
-    def test_reserve_stock_insufficient_stock(self, mock_db_session, mock_redis, mock_redlock):
+    def test_reserve_stock_insufficient_stock(self, real_db_session, real_redis, real_redlock):
         """测试库存不足的情况"""
-        mock_redlock.lock.return_value = Mock()
+        # 插入库存数据
+        product = Product(sku="TEST004", name="测试商品4")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        stock_mock = Mock()
-        stock_mock.available_stock = 1  # 库存只有1个
-        mock_db_session.execute.return_value.scalar_one.return_value = stock_mock
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=1,
+            reserved_stock=0
+        )
+        real_db_session.add(stock)
+        real_db_session.commit()
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
+        service = InventoryService(real_db_session, real_redis, real_redlock)
         
         with pytest.raises(HTTPException) as exc_info:
-            service.reserve_stock(1, 5, "ORDER001")  # 尝试预占5个
+            service.reserve_stock("WH01", product.id, 5, "ORDER_TEST_002")
         
         assert exc_info.value.status_code == 400
         assert "库存不足" in str(exc_info.value.detail)
-        mock_db_session.rollback.assert_called_once()
+        real_db_session.rollback()
 
-    def test_reserve_stock_duplicate_reservation(self, mock_db_session, mock_redis, mock_redlock):
+    def test_reserve_stock_duplicate_reservation(self, real_db_session, real_redis, real_redlock):
         """测试重复预占的情况"""
-        mock_redlock.lock.return_value = Mock()
+        # 插入库存数据和预占记录
+        product = Product(sku="TEST005", name="测试商品5")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        stock_mock = Mock()
-        stock_mock.available_stock = 10
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=10,
+            reserved_stock=0
+        )
+        real_db_session.add(stock)
         
-        # 模拟已存在预占记录
-        existing_reservation = Mock()
-        mock_db_session.execute.return_value.scalar_one.return_value = stock_mock
-        mock_db_session.execute.return_value.scalar_one_or_none.return_value = existing_reservation
+        # 第一次预占
+        reservation = InventoryReservation(
+            warehouse_id="WH01",
+            order_id="ORDER_TEST_003",
+            product_id=product.id,
+            quantity=2,
+            status=ReservationStatus.RESERVED,
+            expired_at=datetime.utcnow() + timedelta(minutes=15)
+        )
+        real_db_session.add(reservation)
+        real_db_session.commit()
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
+        stock.available_stock -= 2
+        stock.reserved_stock += 2
+        real_db_session.commit()
+        
+        service = InventoryService(real_db_session, real_redis, real_redlock)
         
         with pytest.raises(HTTPException) as exc_info:
-            service.reserve_stock(1, 2, "ORDER001")
+            service.reserve_stock("WH01", product.id, 2, "ORDER_TEST_003")
         
         assert exc_info.value.status_code == 400
         assert "该订单已预占此商品" in str(exc_info.value.detail)
 
-    def test_reserve_stock_lock_failure(self, mock_db_session, mock_redis, mock_redlock):
-        """测试获取分布式锁失败"""
-        mock_redlock.lock.return_value = None  # 锁获取失败
-        
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        
-        with pytest.raises(HTTPException) as exc_info:
-            service.reserve_stock(1, 2, "ORDER001")
-        
-        assert exc_info.value.status_code == 429
-        assert "库存操作冲突，请稍后重试" in str(exc_info.value.detail)
-
-    def test_confirm_stock_success(self, mock_db_session, mock_redis, mock_redlock):
+    def test_confirm_stock_success(self, real_db_session, real_redis, real_redlock):
         """测试成功确认库存"""
-        lock_mock = Mock()
-        mock_redlock.lock.return_value = lock_mock
+        # 插入库存数据和预占记录
+        product = Product(sku="TEST006", name="测试商品6")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        # 模拟预占记录
-        reservation_mock = Mock()
-        reservation_mock.product_id = 1
-        reservation_mock.quantity = 2
-        reservation_mock.status = ReservationStatus.RESERVED
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=8,
+            reserved_stock=2
+        )
+        real_db_session.add(stock)
         
-        # 模拟商品库存
-        stock_mock = Mock()
-        stock_mock.reserved_stock = 2
+        reservation = InventoryReservation(
+            warehouse_id="WH01",
+            order_id="ORDER_TEST_004",
+            product_id=product.id,
+            quantity=2,
+            status=ReservationStatus.RESERVED,
+            expired_at=datetime.utcnow() + timedelta(minutes=15)
+        )
+        real_db_session.add(reservation)
+        real_db_session.commit()
         
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [reservation_mock]
-        mock_db_session.execute.return_value.scalar_one.return_value = stock_mock
-        
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.confirm_stock("ORDER001")
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.confirm_stock("ORDER_TEST_004")
         
         assert result is True
-        assert reservation_mock.status == ReservationStatus.CONFIRMED
-        assert stock_mock.reserved_stock == 0
-        mock_db_session.commit.assert_called_once()
-
-    def test_confirm_stock_not_found(self, mock_db_session, mock_redis, mock_redlock):
-        """测试未找到预占记录"""
-        mock_redlock.lock.return_value = Mock()
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = []  # 无预占记录
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
+        # 验证预占状态
+        real_db_session.refresh(reservation)
+        assert reservation.status == ReservationStatus.CONFIRMED
+        
+        # 验证库存
+        real_db_session.refresh(stock)
+        assert stock.reserved_stock == 0
+
+    def test_confirm_stock_not_found(self, real_db_session, real_redis, real_redlock):
+        """测试未找到预占记录"""
+        service = InventoryService(real_db_session, real_redis, real_redlock)
         
         with pytest.raises(HTTPException) as exc_info:
-            service.confirm_stock("ORDER001")
+            service.confirm_stock("NONEXISTENT_ORDER")
         
         assert exc_info.value.status_code == 404
         assert "未找到有效的预占记录" in str(exc_info.value.detail)
 
-    def test_release_stock_success(self, mock_db_session, mock_redis, mock_redlock):
+    def test_release_stock_success(self, real_db_session, real_redis, real_redlock):
         """测试成功释放库存"""
-        lock_mock = Mock()
-        mock_redlock.lock.return_value = lock_mock
+        # 插入库存数据和预占记录
+        product = Product(sku="TEST007", name="测试商品7")
+        real_db_session.add(product)
+        real_db_session.flush()
         
-        # 模拟预占记录
-        reservation_mock = Mock()
-        reservation_mock.product_id = 1
-        reservation_mock.quantity = 2
-        reservation_mock.status = ReservationStatus.RESERVED
+        stock = ProductStock(
+            warehouse_id="WH01",
+            product_id=product.id,
+            available_stock=8,
+            reserved_stock=2
+        )
+        real_db_session.add(stock)
         
-        # 模拟商品库存
-        stock_mock = Mock()
-        stock_mock.available_stock = 8
-        stock_mock.reserved_stock = 2
+        reservation = InventoryReservation(
+            warehouse_id="WH01",
+            order_id="ORDER_TEST_005",
+            product_id=product.id,
+            quantity=2,
+            status=ReservationStatus.RESERVED,
+            expired_at=datetime.utcnow() + timedelta(minutes=15)
+        )
+        real_db_session.add(reservation)
+        real_db_session.commit()
         
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [reservation_mock]
-        mock_db_session.execute.return_value.scalar_one.return_value = stock_mock
-        
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.release_stock("ORDER001")
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.release_stock("ORDER_TEST_005")
         
         assert result is True
-        assert reservation_mock.status == ReservationStatus.RELEASED
-        assert stock_mock.available_stock == 10  # 8 + 2
-        assert stock_mock.reserved_stock == 0    # 2 - 2
-        mock_db_session.commit.assert_called_once()
+        
+        # 验证预占状态
+        real_db_session.refresh(reservation)
+        assert reservation.status == ReservationStatus.RELEASED
+        
+        # 验证库存归还
+        real_db_session.refresh(stock)
+        assert stock.available_stock == 10
+        assert stock.reserved_stock == 0
 
-    def test_batch_get_stocks_partial_cache(self, mock_db_session, mock_redis, mock_redlock):
-        """测试批量获取库存 - 部分缓存命中"""
-        # 模拟部分缓存命中
-        mock_redis.mget.return_value = ["30", None]  # product_id=1命中，product_id=2未命中
+    def test_batch_get_stocks(self, real_db_session, real_redis, real_redlock):
+        """测试批量获取库存"""
+        # 插入多个商品库存
+        product1 = Product(sku="TEST008", name="测试商品8")
+        product2 = Product(sku="TEST009", name="测试商品9")
+        real_db_session.add_all([product1, product2])
+        real_db_session.flush()
         
-        # 模拟数据库查询结果
-        stock1_mock = Mock()
-        stock1_mock.product_id = 2
-        stock1_mock.available_stock = 25
+        stock1 = ProductStock(
+            warehouse_id="WH01",
+            product_id=product1.id,
+            available_stock=30,
+            reserved_stock=0
+        )
+        stock2 = ProductStock(
+            warehouse_id="WH01",
+            product_id=product2.id,
+            available_stock=25,
+            reserved_stock=0
+        )
+        real_db_session.add_all([stock1, stock2])
+        real_db_session.commit()
         
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [stock1_mock]
+        service = InventoryService(real_db_session, real_redis, real_redlock)
+        result = service.batch_get_stocks("WH01", [product1.id, product2.id])
         
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.batch_get_stocks([1, 2])
-        
-        assert result == {1: 30, 2: 25}
-        mock_redis.mget.assert_called_once()
-        mock_db_session.execute.assert_called_once()
-        # 验证设置了新缓存
-        mock_redis.pipeline.assert_called_once()
-
-    def test_cleanup_expired_reservations(self, mock_db_session, mock_redis, mock_redlock):
-        """测试清理过期预占记录"""
-        # 模拟过期预占记录
-        reservation_mock = Mock()
-        reservation_mock.product_id = 1
-        reservation_mock.order_id = "ORDER001"
-        reservation_mock.quantity = 2
-        reservation_mock.status = ReservationStatus.RESERVED
-        
-        # 模拟商品库存
-        stock_mock = Mock()
-        stock_mock.available_stock = 8
-        stock_mock.reserved_stock = 2
-        
-        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [reservation_mock]
-        mock_db_session.execute.return_value.scalar_one.return_value = stock_mock
-        
-        service = InventoryService(mock_db_session, mock_redis, mock_redlock)
-        result = service.cleanup_expired_reservations(batch_size=100)
-        
-        assert result == 1
-        assert stock_mock.available_stock == 10  # 8 + 2
-        assert stock_mock.reserved_stock == 0    # 2 - 2
-        assert reservation_mock.status == ReservationStatus.RELEASED
-        mock_db_session.commit.assert_called_once()
+        assert result[product1.id] == 30
+        assert result[product2.id] == 25

@@ -1,5 +1,6 @@
 """依赖注入配置模块"""
 
+from typing import Generator
 from fastapi import Depends
 
 # 数据库会话依赖

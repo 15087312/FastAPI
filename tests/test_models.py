@@ -55,8 +55,9 @@ class TestModels:
         db_session.add(product)
         db_session.flush()
         
-        # 创建库存记录
+        # 创建库存记录（添加 warehouse_id）
         stock = ProductStock(
+            warehouse_id="WH001",
             product_id=product.id,
             available_stock=100,
             reserved_stock=10
@@ -78,12 +79,17 @@ class TestModels:
         db_session.add(product)
         db_session.flush()
         
-        stock = ProductStock(product_id=product.id, available_stock=50)
+        stock = ProductStock(
+            warehouse_id="WH001",
+            product_id=product.id,
+            available_stock=50
+        )
         db_session.add(stock)
         db_session.flush()
         
-        # 创建预占记录
+        # 创建预占记录（添加 warehouse_id）
         reservation = InventoryReservation(
+            warehouse_id="WH001",
             order_id="ORDER001",
             product_id=product.id,
             quantity=5,
@@ -140,9 +146,10 @@ class TestModels:
         product = Product(sku="PROD001", name="测试商品")
         db_session.add(product)
         db_session.flush()
-        
-        # 创建第一条预占记录
+            
+        # 创建第一条预占记录（添加 warehouse_id）
         reservation1 = InventoryReservation(
+            warehouse_id="WH001",
             order_id="ORDER001",
             product_id=product.id,
             quantity=2,
@@ -150,11 +157,12 @@ class TestModels:
         )
         db_session.add(reservation1)
         db_session.commit()
-        
+            
         # 尝试创建重复的预占记录（相同订单和商品）
         reservation2 = InventoryReservation(
-            order_id="ORDER001",  # 相同订单ID
-            product_id=product.id,  # 相同商品ID
+            warehouse_id="WH001",
+            order_id="ORDER001",  # 相同订单 ID
+            product_id=product.id,  # 相同商品 ID
             quantity=3,
             status=ReservationStatus.RESERVED
         )
@@ -190,8 +198,9 @@ class TestModels:
         db_session.add(product)
         db_session.flush()
         
-        # 创建库存
+        # 创建库存（添加 warehouse_id）
         stock = ProductStock(
+            warehouse_id="WH001",
             product_id=product.id,
             available_stock=100,
             reserved_stock=10
@@ -199,14 +208,16 @@ class TestModels:
         db_session.add(stock)
         db_session.flush()
         
-        # 创建多个预占记录
+        # 创建多个预占记录（添加 warehouse_id）
         reservation1 = InventoryReservation(
+            warehouse_id="WH001",
             order_id="ORDER001",
             product_id=product.id,
             quantity=5,
             status=ReservationStatus.RESERVED
         )
         reservation2 = InventoryReservation(
+            warehouse_id="WH001",
             order_id="ORDER002",
             product_id=product.id,
             quantity=3,

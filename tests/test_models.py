@@ -16,15 +16,21 @@ class TestModels:
 
     @pytest.fixture
     def db_session(self):
-        """创建PostgreSQL数据库会话"""
-        # 使用PostgreSQL测试数据库
+        """创建 PostgreSQL 数据库会话"""
+        # 使用 PostgreSQL 测试数据库
         DATABASE_URL = "postgresql://postgres:123456@localhost:5432/mydb"
         engine = create_engine(DATABASE_URL, echo=False)
         Base.metadata.create_all(engine)
         SessionLocal = sessionmaker(bind=engine)
         db = SessionLocal()
-        
+            
         try:
+            # 清理旧数据（按正确的外键依赖顺序）
+            db.query(InventoryLog).delete()
+            db.query(InventoryReservation).delete()
+            db.query(ProductStock).delete()
+            db.query(Product).delete()
+            db.commit()
             yield db
         finally:
             db.close()

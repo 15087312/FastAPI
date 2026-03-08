@@ -1,0 +1,2307 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "\u5e93\u5b58\u5fae\u670d\u52a1 API",
+    "description": "\u4e13\u4e1a\u7684\u5e93\u5b58\u7ba1\u7406\u5fae\u670d\u52a1\uff0c\u652f\u6301\u9ad8\u5e76\u53d1\u73af\u5883\u4e0b\u7684\u5e93\u5b58\u5b89\u5168\u7ba1\u7406\uff0c\u9632\u6b62\u8d85\u5356\u95ee\u9898\u3002\n                    \n                    ## \ud83d\ude80 \u6838\u5fc3\u7279\u6027\n                    \n                    - **\u9632\u8d85\u5356\u4fdd\u969c** - PostgreSQL \u884c\u7ea7\u9501 + Redis \u5206\u5e03\u5f0f\u9501\u53cc\u91cd\u4fdd\u62a4\n                    - **\u9ad8\u6027\u80fd\u7f13\u5b58** - Redis \u7f13\u5b58\u5c42\u52a0\u901f\u8bfb\u53d6\uff0c\u652f\u6301\u6279\u91cf\u64cd\u4f5c\n                    - **\u591a\u5c42\u67b6\u6784** - API / Celery / CLI \u4e09\u79cd\u8c03\u7528\u65b9\u5f0f\n                    - **\u5b8c\u6574\u5ba1\u8ba1** - \u8be6\u7ec6\u7684\u64cd\u4f5c\u65e5\u5fd7\u548c\u72b6\u6001\u8ffd\u8e2a\n                    - **\u5e42\u7b49\u4fdd\u8bc1** - \u57fa\u4e8e Redis \u7684\u8bf7\u6c42\u53bb\u91cd\u673a\u5236\n                    - **\u4f18\u96c5\u964d\u7ea7** - Redis \u6545\u969c\u65f6\u81ea\u52a8\u964d\u7ea7\u5230\u6570\u636e\u5e93\u6a21\u5f0f\n                    \n                    ## \ud83d\udcda \u6587\u6863\u8bf4\u660e\n                    \n                    - **\u57fa\u7840\u8def\u5f84**: `/api/v1`\n                    - **\u5065\u5eb7\u68c0\u67e5**: `GET /health`\n                    - **API \u6587\u6863**: `GET /docs` (Swagger UI)\n                    - **ReDoc \u6587\u6863**: `GET /redoc` (ReDoc UI)\n                    \n                    ## \ud83d\udd27 \u9519\u8bef\u7801\u8bf4\u660e\n                    \n                    - `200`: \u8bf7\u6c42\u6210\u529f\n                    - `400`: \u8bf7\u6c42\u53c2\u6570\u9519\u8bef\n                    - `404`: \u8d44\u6e90\u672a\u627e\u5230\n                    - `422`: \u8bf7\u6c42\u9a8c\u8bc1\u5931\u8d25\n                    - `429`: \u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41\n                    - `500`: \u670d\u52a1\u5668\u5185\u90e8\u9519\u8bef\n                    \n                    ## \ud83c\udf10 \u5f53\u524d\u8fd0\u884c\u7aef\u53e3\uff1a8000\n                    \u5982\u679c\u7aef\u53e3\u88ab\u5360\u7528\uff0c\u7cfb\u7edf\u5c06\u81ea\u52a8\u5c1d\u8bd5\u4f7f\u7528\u5176\u4ed6\u53ef\u7528\u7aef\u53e3\u3002",
+    "termsOfService": "https://example.com/terms/",
+    "contact": {
+      "name": "\u5e93\u5b58\u5fae\u670d\u52a1\u56e2\u961f",
+      "url": "https://github.com/your-org/inventory-service",
+      "email": "inventory@example.com"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "\u5f00\u53d1\u73af\u5883"
+    },
+    {
+      "url": "https://api.example.com",
+      "description": "\u751f\u4ea7\u73af\u5883"
+    }
+  ],
+  "paths": {
+    "/api/v1/inventory/stock/{product_id}": {
+      "get": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u67e5\u8be2\u5546\u54c1\u5e93\u5b58",
+        "description": "\u67e5\u8be2\u6307\u5b9a\u5546\u54c1\u7684\u5e93\u5b58\u4fe1\u606f\u3002\n    \n    **\u7f13\u5b58\u7b56\u7565\uff1a**\n    - \u9996\u5148\u67e5\u8be2 Redis \u7f13\u5b58\n    - \u7f13\u5b58\u672a\u547d\u4e2d\u5219\u67e5\u8be2\u6570\u636e\u5e93\n    - \u67e5\u8be2\u7ed3\u679c\u7f13\u5b58 5 \u5206\u949f\n    \n    **\u591a\u4ed3\u652f\u6301\uff1a**\n    - \u9700\u8981\u63d0\u4f9b warehouse_id \u53c2\u6570\n    - \u8fd4\u56de\u5b8c\u6574\u5e93\u5b58\u4fe1\u606f\uff08\u53ef\u7528\u3001\u9884\u5360\u3001\u51bb\u7ed3\u3001\u5728\u9014\u3001\u5b89\u5168\u5e93\u5b58\uff09",
+        "operationId": "get_stock_api_v1_inventory_stock__product_id__get",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "\u5546\u54c1 ID",
+              "examples": [
+                1
+              ],
+              "title": "Product Id"
+            },
+            "description": "\u5546\u54c1 ID"
+          },
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "description": "\u4ed3\u5e93 ID",
+              "examples": [
+                "WH01"
+              ],
+              "default": "WH01",
+              "title": "Warehouse Id"
+            },
+            "description": "\u4ed3\u5e93 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\u67e5\u8be2\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "warehouse_id": "WH01",
+                  "product_id": 1,
+                  "available_stock": 100,
+                  "reserved_stock": 10,
+                  "frozen_stock": 5,
+                  "in_transit_stock": 20,
+                  "safety_stock": 10,
+                  "total_stock": 135
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/stock/batch": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u6279\u91cf\u67e5\u8be2\u5546\u54c1\u5e93\u5b58",
+        "description": "\u6279\u91cf\u67e5\u8be2\u591a\u4e2a\u5546\u54c1\u7684\u5e93\u5b58\u6570\u91cf\u3002\n    \n    **\u4f18\u52bf\uff1a**\n    - \u5355\u6b21\u8bf7\u6c42\u67e5\u8be2\u591a\u4e2a\u5546\u54c1\n    - Redis \u7ba1\u9053\u4f18\u5316\u6279\u91cf\u64cd\u4f5c\n    - \u51cf\u5c11\u7f51\u7edc\u5f80\u8fd4\u6b21\u6570\n    \n    **\u9650\u5236\uff1a**\n    - \u5355\u6b21\u6700\u591a\u67e5\u8be2 100 \u4e2a\u5546\u54c1\n    - \u5efa\u8bae\u6309\u4e1a\u52a1\u573a\u666f\u5408\u7406\u5206\u6279\n    \n    **\u591a\u4ed3\u652f\u6301\uff1a**\n    - \u9700\u8981\u63d0\u4f9b warehouse_id \u53c2\u6570",
+        "operationId": "batch_get_stocks_api_v1_inventory_stock_batch_post",
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "description": "\u4ed3\u5e93 ID",
+              "examples": [
+                "WH01"
+              ],
+              "default": "WH01",
+              "title": "Warehouse Id"
+            },
+            "description": "\u4ed3\u5e93 ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BatchStockQueryRequest"
+                  }
+                ],
+                "description": "\u6279\u91cf\u67e5\u8be2\u8bf7\u6c42\u53c2\u6570",
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "\u6279\u91cf\u67e5\u8be2\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "1": 100,
+                    "2": 50,
+                    "3": 0
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/reserve": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u9884\u5360\u5e93\u5b58",
+        "description": "\u9884\u5360\u6307\u5b9a\u5546\u54c1\u7684\u5e93\u5b58\u6570\u91cf\uff0c\u9632\u6b62\u8d85\u5356\u3002\n    \n    **\u7279\u70b9\uff1a**\n    - \u4f7f\u7528\u6570\u636e\u5e93\u884c\u7ea7\u9501\u786e\u4fdd\u539f\u5b50\u6027\n    - \u652f\u6301\u5206\u5e03\u5f0f\u9501\u9632\u6b62\u5e76\u53d1\u51b2\u7a81\n    - 15 \u5206\u949f\u540e\u81ea\u52a8\u8fc7\u671f\n    - \u5e42\u7b49\u6027\u4fdd\u8bc1\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u7528\u6237\u4e0b\u5355\u65f6\u9884\u5360\u5e93\u5b58\n    - \u8d2d\u7269\u8f66\u7ed3\u7b97\u65f6\u9501\u5b9a\u5546\u54c1\n    \n    **\u591a\u4ed3\u652f\u6301\uff1a**\n    - \u9700\u8981\u63d0\u4f9b warehouse_id \u53c2\u6570",
+        "operationId": "reserve_stock_api_v1_inventory_reserve_post",
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "description": "\u4ed3\u5e93 ID",
+              "examples": [
+                "WH01"
+              ],
+              "title": "Warehouse Id"
+            },
+            "description": "\u4ed3\u5e93 ID"
+          },
+          {
+            "name": "product_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "\u5546\u54c1 ID",
+              "examples": [
+                1
+              ],
+              "title": "Product Id"
+            },
+            "description": "\u5546\u54c1 ID"
+          },
+          {
+            "name": "quantity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "\u9884\u5360\u6570\u91cf",
+              "examples": [
+                2
+              ],
+              "title": "Quantity"
+            },
+            "description": "\u9884\u5360\u6570\u91cf"
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "\u8ba2\u5355 ID",
+              "examples": [
+                "ORD202401010001"
+              ],
+              "title": "Order Id"
+            },
+            "description": "\u8ba2\u5355 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\u9884\u5360\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u9884\u5360\u6210\u529f",
+                  "data": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "\u5e93\u5b58\u4e0d\u8db3\u6216\u91cd\u590d\u9884\u5360",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "insufficient_stock": {
+                    "summary": "\u5e93\u5b58\u4e0d\u8db3",
+                    "value": {
+                      "success": false,
+                      "message": "\u5e93\u5b58\u4e0d\u8db3"
+                    }
+                  },
+                  "duplicate_reservation": {
+                    "summary": "\u91cd\u590d\u9884\u5360",
+                    "value": {
+                      "success": false,
+                      "message": "\u8be5\u8ba2\u5355\u5df2\u9884\u5360\u6b64\u5546\u54c1"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/confirm/{order_id}": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u786e\u8ba4\u5e93\u5b58\u6263\u51cf",
+        "description": "\u786e\u8ba4\u9884\u5360\u7684\u5e93\u5b58\uff0c\u5b9e\u9645\u6263\u51cf\u5546\u54c1\u5e93\u5b58\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u7528\u6237\u652f\u4ed8\u6210\u529f\u540e\u786e\u8ba4\u8ba2\u5355\n    - \u7cfb\u7edf\u81ea\u52a8\u786e\u8ba4\u8d85\u65f6\u8ba2\u5355\n    \n    **\u6ce8\u610f\uff1a**\n    - \u53ea\u80fd\u786e\u8ba4\u72b6\u6001\u4e3a RESERVED \u7684\u9884\u5360\u8bb0\u5f55\n    - \u786e\u8ba4\u540e\u9884\u5360\u72b6\u6001\u53d8\u4e3a CONFIRMED",
+        "operationId": "confirm_stock_api_v1_inventory_confirm__order_id__post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "\u8ba2\u5355 ID",
+              "examples": [
+                "ORD202401010001"
+              ],
+              "title": "Order Id"
+            },
+            "description": "\u8ba2\u5355 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\u786e\u8ba4\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u786e\u8ba4\u6210\u529f",
+                  "data": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "message": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/release/{order_id}": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u91ca\u653e\u9884\u5360\u5e93\u5b58",
+        "description": "\u91ca\u653e\u9884\u5360\u7684\u5e93\u5b58\uff0c\u5f52\u8fd8\u7ed9\u53ef\u7528\u5e93\u5b58\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u7528\u6237\u53d6\u6d88\u8ba2\u5355\n    - \u8ba2\u5355\u8d85\u65f6\u672a\u652f\u4ed8\n    - \u7cfb\u7edf\u81ea\u52a8\u91ca\u653e\u8fc7\u671f\u9884\u5360\n    \n    **\u6548\u679c\uff1a**\n    - \u589e\u52a0\u53ef\u7528\u5e93\u5b58\n    - \u51cf\u5c11\u9884\u5360\u5e93\u5b58\n    - \u66f4\u65b0\u9884\u5360\u72b6\u6001\u4e3a RELEASED",
+        "operationId": "release_stock_api_v1_inventory_release__order_id__post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "\u8ba2\u5355 ID",
+              "examples": [
+                "ORD202401010001"
+              ],
+              "title": "Order Id"
+            },
+            "description": "\u8ba2\u5355 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\u91ca\u653e\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u91ca\u653e\u6210\u529f",
+                  "data": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "message": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/increase": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u5165\u5e93/\u8865\u8d27",
+        "description": "\u589e\u52a0\u5546\u54c1\u5e93\u5b58\uff0c\u7528\u4e8e\u5165\u5e93\u3001\u8865\u8d27\u7b49\u573a\u666f\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u91c7\u8d2d\u5165\u5e93\n    - \u9000\u8d27\u5165\u5e93\n    - \u8c03\u62e8\u5165\u5e93\n    - \u76d8\u70b9\u76c8\u4e8f\u8c03\u6574\n    \n    **\u6ce8\u610f\uff1a**\n    - \u5982\u679c\u5e93\u5b58\u8bb0\u5f55\u4e0d\u5b58\u5728\uff0c\u4f1a\u81ea\u52a8\u521b\u5efa\n    - \u4f1a\u8bb0\u5f55\u5e93\u5b58\u53d8\u66f4\u65e5\u5fd7",
+        "operationId": "increase_stock_api_v1_inventory_increase_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IncreaseStockRequest"
+                  }
+                ],
+                "title": "Request",
+                "description": "\u5165\u5e93\u8bf7\u6c42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "\u5165\u5e93\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncreaseStockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u5165\u5e93\u6210\u529f",
+                  "warehouse_id": "WH01",
+                  "product_id": 1,
+                  "before_stock": 100,
+                  "after_stock": 200,
+                  "quantity": 100
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/adjust": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u5e93\u5b58\u8c03\u6574",
+        "description": "\u624b\u52a8\u8c03\u6574\u5546\u54c1\u5e93\u5b58\uff0c\u652f\u6301\u589e\u52a0\u3001\u51cf\u5c11\u3001\u8bbe\u7f6e\u4e3a\u6307\u5b9a\u503c\u3002\n    \n    **\u8c03\u6574\u7c7b\u578b\uff1a**\n    - increase: \u589e\u52a0\u5e93\u5b58\n    - decrease: \u51cf\u5c11\u5e93\u5b58\n    - set: \u8bbe\u7f6e\u4e3a\u6307\u5b9a\u503c\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u76d8\u70b9\u4fee\u6b63\n    - \u5e93\u5b58\u7ea0\u9519\n    - \u4eba\u5de5\u5e72\u9884",
+        "operationId": "adjust_stock_api_v1_inventory_adjust_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/AdjustStockRequest"
+                  }
+                ],
+                "title": "Request",
+                "description": "\u8c03\u6574\u8bf7\u6c42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "\u8c03\u6574\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustStockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u8c03\u6574\u6210\u529f",
+                  "warehouse_id": "WH01",
+                  "product_id": 1,
+                  "before_available": 100,
+                  "after_available": 110,
+                  "adjust_type": "increase",
+                  "quantity": 10
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/freeze": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u51bb\u7ed3\u5e93\u5b58",
+        "description": "\u51bb\u7ed3\u6307\u5b9a\u5e93\u5b58\uff0c\u51bb\u7ed3\u540e\u4e0d\u53ef\u7528\u4e8e\u9884\u5360\u548c\u9500\u552e\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u5f85\u68c0\u54c1\n    - \u5f85\u5b9a\u5206\u914d\n    - \u4e34\u65f6\u9501\u5b9a\n    \n    **\u6ce8\u610f\uff1a**\n    - \u53ea\u80fd\u51bb\u7ed3\u53ef\u7528\u5e93\u5b58\n    - \u51bb\u7ed3\u540e\u5e93\u5b58\u4ece\u53ef\u7528\u8f6c\u4e3a\u51bb\u7ed3\u72b6\u6001",
+        "operationId": "freeze_stock_api_v1_inventory_freeze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/FreezeStockRequest"
+                  }
+                ],
+                "title": "Request",
+                "description": "\u51bb\u7ed3\u8bf7\u6c42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "\u51bb\u7ed3\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreezeStockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u51bb\u7ed3\u6210\u529f",
+                  "warehouse_id": "WH01",
+                  "product_id": 1,
+                  "before_frozen": 0,
+                  "after_frozen": 5
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/unfreeze": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u89e3\u51bb\u5e93\u5b58",
+        "description": "\u89e3\u51bb\u6307\u5b9a\u5e93\u5b58\uff0c\u89e3\u51bb\u540e\u5e93\u5b58\u56de\u5230\u53ef\u7528\u72b6\u6001\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u68c0\u9a8c\u901a\u8fc7\n    - \u5206\u914d\u53d6\u6d88\n    - \u4e34\u65f6\u9501\u5b9a\u91ca\u653e",
+        "operationId": "unfreeze_stock_api_v1_inventory_unfreeze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/UnfreezeStockRequest"
+                  }
+                ],
+                "title": "Request",
+                "description": "\u89e3\u51bb\u8bf7\u6c42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "\u89e3\u51bb\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreezeStockResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u89e3\u51bb\u6210\u529f",
+                  "warehouse_id": "WH01",
+                  "product_id": 1,
+                  "before_frozen": 5,
+                  "after_frozen": 0
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/reserve-batch": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u6279\u91cf\u9884\u5360\u5e93\u5b58",
+        "description": "\u6279\u91cf\u9884\u5360\u591a\u4e2a\u5546\u54c1\u5e93\u5b58\uff0c\u4fdd\u8bc1\u4e8b\u52a1\u4e00\u81f4\u6027\u3002\n    \n    **\u7279\u70b9\uff1a**\n    - \u5168\u90e8\u6210\u529f\u6216\u5168\u90e8\u56de\u6eda\n    - \u652f\u6301\u591a\u4ed3\u5e93\n    - \u4f7f\u7528\u5206\u5e03\u5f0f\u9501\u9632\u6b62\u5e76\u53d1\n    \n    **\u9650\u5236\uff1a**\n    - \u5355\u6b21\u6700\u591a 100 \u4e2a\u5546\u54c1\n    - \u9884\u5360\u6709\u6548\u671f 15 \u5206\u949f",
+        "operationId": "batch_reserve_stock_api_v1_inventory_reserve_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BatchReserveRequest"
+                  }
+                ],
+                "title": "Request",
+                "description": "\u6279\u91cf\u9884\u5360\u8bf7\u6c42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "\u6279\u91cf\u9884\u5360\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchReserveResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "\u6279\u91cf\u9884\u5360\u6210\u529f",
+                  "order_id": "ORD202401010001",
+                  "total_items": 2,
+                  "success_items": 2,
+                  "failed_items": 0,
+                  "details": [
+                    {
+                      "warehouse_id": "WH01",
+                      "product_id": 1,
+                      "success": true,
+                      "message": "\u9884\u5360\u6210\u529f"
+                    },
+                    {
+                      "warehouse_id": "WH01",
+                      "product_id": 2,
+                      "success": true,
+                      "message": "\u9884\u5360\u6210\u529f"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/release-batch": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u6279\u91cf\u91ca\u653e\u9884\u5360",
+        "description": "\u6279\u91cf\u91ca\u653e\u540c\u4e00\u8ba2\u5355\u7684\u6240\u6709\u9884\u5360\u5e93\u5b58\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u6574\u5355\u53d6\u6d88\n    - \u6574\u5355\u9000\u8d27\n    \n    **\u7279\u70b9\uff1a**\n    - \u4e00\u6b21\u6027\u91ca\u653e\u8ba2\u5355\u6240\u6709\u5546\u54c1\n    - \u6279\u91cf\u64cd\u4f5c\u6027\u80fd\u4f18\u5316",
+        "operationId": "batch_release_stock_api_v1_inventory_release_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BatchReleaseRequest"
+                  }
+                ],
+                "title": "Request",
+                "description": "\u6279\u91cf\u91ca\u653e\u8bf7\u6c42"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "\u6279\u91cf\u91ca\u653e\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "success": true,
+                  "message": "\u6279\u91cf\u91ca\u653e\u6210\u529f",
+                  "order_id": "ORD202401010001",
+                  "released_count": 3
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/logs": {
+      "get": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "\u67e5\u8be2\u5e93\u5b58\u6d41\u6c34",
+        "description": "\u67e5\u8be2\u5e93\u5b58\u53d8\u66f4\u6d41\u6c34\u65e5\u5fd7\uff0c\u652f\u6301\u5206\u9875\u548c\u591a\u79cd\u7b5b\u9009\u6761\u4ef6\u3002\n    \n    **\u7b5b\u9009\u6761\u4ef6\uff1a**\n    - warehouse_id: \u4ed3\u5e93 ID\n    - product_id: \u5546\u54c1 ID\n    - order_id: \u8ba2\u5355 ID\n    - change_type: \u53d8\u66f4\u7c7b\u578b\n    - start_date/end_date: \u65f6\u95f4\u8303\u56f4\n    \n    **\u8fd4\u56de\u5b57\u6bb5\uff1a**\n    - \u53d8\u66f4\u524d\u540e\u5e93\u5b58\uff08\u53ef\u7528\u3001\u9884\u5360\u3001\u51bb\u7ed3\uff09\n    - \u64cd\u4f5c\u4eba\u3001\u6765\u6e90\u3001\u5907\u6ce8",
+        "operationId": "get_inventory_logs_api_v1_inventory_logs_get",
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\u4ed3\u5e93 ID",
+              "title": "Warehouse Id"
+            },
+            "description": "\u4ed3\u5e93 ID"
+          },
+          {
+            "name": "product_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\u5546\u54c1 ID",
+              "title": "Product Id"
+            },
+            "description": "\u5546\u54c1 ID"
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\u8ba2\u5355 ID",
+              "title": "Order Id"
+            },
+            "description": "\u8ba2\u5355 ID"
+          },
+          {
+            "name": "change_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\u53d8\u66f4\u7c7b\u578b",
+              "title": "Change Type"
+            },
+            "description": "\u53d8\u66f4\u7c7b\u578b"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\u5f00\u59cb\u65f6\u95f4 (ISO \u683c\u5f0f)",
+              "title": "Start Date"
+            },
+            "description": "\u5f00\u59cb\u65f6\u95f4 (ISO \u683c\u5f0f)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "\u7ed3\u675f\u65f6\u95f4 (ISO \u683c\u5f0f)",
+              "title": "End Date"
+            },
+            "description": "\u7ed3\u675f\u65f6\u95f4 (ISO \u683c\u5f0f)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "\u9875\u7801",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "\u9875\u7801"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "\u6bcf\u9875\u6570\u91cf",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "\u6bcf\u9875\u6570\u91cf"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "\u67e5\u8be2\u6210\u529f",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedLogsResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "id": 1,
+                      "warehouse_id": "WH01",
+                      "product_id": 1,
+                      "order_id": "ORD202401010001",
+                      "change_type": "RESERVE",
+                      "quantity": -2,
+                      "before_available": 100,
+                      "after_available": 98,
+                      "before_reserved": 0,
+                      "after_reserved": 2,
+                      "before_frozen": 0,
+                      "after_frozen": 0,
+                      "created_at": "2024-01-01T10:00:00",
+                      "operator": "order_service_ORD202401010001",
+                      "source": "order_service"
+                    }
+                  ],
+                  "total": 1,
+                  "page": 1,
+                  "page_size": 50,
+                  "total_pages": 1
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cleanup/manual": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "Manual Cleanup",
+        "description": "\u624b\u52a8\u89e6\u53d1\u6e05\u7406\u4efb\u52a1\uff08\u65b9\u5f0f\u4e8c\uff1aAPI \u76f4\u63a5\u8c03\u7528 Service\uff09",
+        "operationId": "manual_cleanup_api_v1_inventory_cleanup_manual_post",
+        "parameters": [
+          {
+            "name": "batch_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 500,
+              "title": "Batch Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cleanup/celery": {
+      "post": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "Celery Cleanup",
+        "description": "\u89e6\u53d1 Celery \u5f02\u6b65\u6e05\u7406\u4efb\u52a1\uff08\u65b9\u5f0f\u4e09\uff1aCelery \u8c03\u7528\uff09",
+        "operationId": "celery_cleanup_api_v1_inventory_cleanup_celery_post",
+        "parameters": [
+          {
+            "name": "batch_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 500,
+              "title": "Batch Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/cleanup/status/{task_id}": {
+      "get": {
+        "tags": [
+          "\u5e93\u5b58\u7ba1\u7406",
+          "\u5e93\u5b58\u7ba1\u7406"
+        ],
+        "summary": "Get Cleanup Status",
+        "description": "\u67e5\u8be2 Celery \u4efb\u52a1\u6267\u884c\u72b6\u6001",
+        "operationId": "get_cleanup_status_api_v1_inventory_cleanup_status__task_id__get",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "\u5065\u5eb7\u68c0\u67e5",
+        "description": "\u68c0\u67e5\u670d\u52a1\u662f\u5426\u6b63\u5e38\u8fd0\u884c",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "\u670d\u52a1\u5065\u5eb7",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                },
+                "example": {
+                  "status": "healthy",
+                  "service": "inventory-microservice",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "API \u6839\u8def\u5f84",
+        "description": "API \u670d\u52a1\u7684\u6839\u8def\u5f84\u4fe1\u606f",
+        "operationId": "read_root__get",
+        "responses": {
+          "200": {
+            "description": "\u6210\u529f\u8fd4\u56de",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Read Root  Get"
+                },
+                "example": {
+                  "message": "\u6b22\u8fce\u4f7f\u7528\u5e93\u5b58\u5fae\u670d\u52a1",
+                  "docs": "/docs",
+                  "health": "/health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdjustStockRequest": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID",
+            "example": "WH01"
+          },
+          "product_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID",
+            "example": 1
+          },
+          "adjust_type": {
+            "type": "string",
+            "title": "Adjust Type",
+            "description": "\u8c03\u6574\u7c7b\u578b: increase(\u589e\u52a0) / decrease(\u51cf\u5c11) / set(\u8bbe\u7f6e\u4e3a)",
+            "example": "increase"
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "description": "\u8c03\u6574\u6570\u91cf",
+            "example": 10
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Reason",
+            "description": "\u8c03\u6574\u539f\u56e0",
+            "example": "\u76d8\u70b9\u4fee\u6b63"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator",
+            "description": "\u64cd\u4f5c\u4eba",
+            "example": "admin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "adjust_type",
+          "quantity",
+          "reason"
+        ],
+        "title": "AdjustStockRequest",
+        "description": "\u5e93\u5b58\u8c03\u6574\u8bf7\u6c42"
+      },
+      "AdjustStockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "warehouse_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID"
+          },
+          "before_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Available",
+            "description": "\u8c03\u6574\u524d\u53ef\u7528\u5e93\u5b58"
+          },
+          "after_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Available",
+            "description": "\u8c03\u6574\u540e\u53ef\u7528\u5e93\u5b58"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "AdjustStockResponse",
+        "description": "\u5e93\u5b58\u8c03\u6574\u54cd\u5e94"
+      },
+      "BatchReleaseRequest": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Order Id",
+            "description": "\u8ba2\u5355ID",
+            "example": "ORD202401010001"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id"
+        ],
+        "title": "BatchReleaseRequest",
+        "description": "\u6279\u91cf\u91ca\u653e\u8bf7\u6c42"
+      },
+      "BatchReserveItem": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID",
+            "example": "WH01"
+          },
+          "product_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID",
+            "example": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "description": "\u9884\u5360\u6570\u91cf",
+            "example": 2
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "quantity"
+        ],
+        "title": "BatchReserveItem",
+        "description": "\u6279\u91cf\u9884\u5360\u5355\u9879"
+      },
+      "BatchReserveItemResponse": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "title": "Warehouse Id"
+          },
+          "product_id": {
+            "type": "integer",
+            "title": "Product Id"
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "success",
+          "message"
+        ],
+        "title": "BatchReserveItemResponse",
+        "description": "\u6279\u91cf\u9884\u5360\u5355\u9879\u54cd\u5e94"
+      },
+      "BatchReserveRequest": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Order Id",
+            "description": "\u8ba2\u5355ID",
+            "example": "ORD202401010001"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchReserveItem"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Items",
+            "description": "\u9884\u5360\u5546\u54c1\u5217\u8868",
+            "example": [
+              {
+                "product_id": 1,
+                "quantity": 2,
+                "warehouse_id": "WH01"
+              },
+              {
+                "product_id": 2,
+                "quantity": 3,
+                "warehouse_id": "WH01"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "items"
+        ],
+        "title": "BatchReserveRequest",
+        "description": "\u6279\u91cf\u9884\u5360\u8bf7\u6c42"
+      },
+      "BatchReserveResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id",
+            "description": "\u8ba2\u5355ID"
+          },
+          "total_items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Items",
+            "description": "\u603b\u5546\u54c1\u6570"
+          },
+          "success_items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Items",
+            "description": "\u6210\u529f\u5546\u54c1\u6570"
+          },
+          "failed_items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Items",
+            "description": "\u5931\u8d25\u5546\u54c1\u6570"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BatchReserveItemResponse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "\u8be6\u7ec6\u7ed3\u679c"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "BatchReserveResponse",
+        "description": "\u6279\u91cf\u9884\u5360\u54cd\u5e94"
+      },
+      "BatchStockQueryRequest": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID",
+            "example": "WH01"
+          },
+          "product_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Product Ids",
+            "description": "\u5546\u54c1ID\u5217\u8868",
+            "example": [
+              1,
+              2,
+              3
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_ids"
+        ],
+        "title": "BatchStockQueryRequest",
+        "description": "\u6279\u91cf\u67e5\u8be2\u5e93\u5b58\u8bf7\u6c42"
+      },
+      "BatchStockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Data",
+            "description": "\u5546\u54c1ID\u5230\u5e93\u5b58\u6570\u91cf\u7684\u6620\u5c04"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "title": "BatchStockResponse",
+        "description": "\u6279\u91cf\u5e93\u5b58\u67e5\u8be2\u54cd\u5e94"
+      },
+      "FreezeStockRequest": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID",
+            "example": "WH01"
+          },
+          "product_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID",
+            "example": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "description": "\u51bb\u7ed3\u6570\u91cf",
+            "example": 5
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "\u51bb\u7ed3\u539f\u56e0",
+            "example": "\u5f85\u68c0\u54c1"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator",
+            "description": "\u64cd\u4f5c\u4eba",
+            "example": "admin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "quantity"
+        ],
+        "title": "FreezeStockRequest",
+        "description": "\u51bb\u7ed3\u5e93\u5b58\u8bf7\u6c42"
+      },
+      "FreezeStockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "warehouse_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID"
+          },
+          "before_frozen": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Frozen",
+            "description": "\u64cd\u4f5c\u524d\u51bb\u7ed3\u5e93\u5b58"
+          },
+          "after_frozen": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Frozen",
+            "description": "\u64cd\u4f5c\u540e\u51bb\u7ed3\u5e93\u5b58"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "FreezeStockResponse",
+        "description": "\u51bb\u7ed3/\u89e3\u51bb\u54cd\u5e94"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IncreaseStockRequest": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID",
+            "example": "WH01"
+          },
+          "product_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID",
+            "example": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "description": "\u5165\u5e93\u6570\u91cf",
+            "example": 100
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id",
+            "description": "\u5165\u5e93\u5355\u53f7\uff08\u53ef\u9009\uff09",
+            "example": "RK202401010001"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator",
+            "description": "\u64cd\u4f5c\u4eba",
+            "example": "admin"
+          },
+          "remark": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remark",
+            "description": "\u5907\u6ce8",
+            "example": "\u5e38\u89c4\u8865\u8d27"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "quantity"
+        ],
+        "title": "IncreaseStockRequest",
+        "description": "\u5165\u5e93/\u8865\u8d27\u8bf7\u6c42"
+      },
+      "IncreaseStockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "warehouse_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID"
+          },
+          "before_stock": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Stock",
+            "description": "\u5165\u5e93\u524d\u5e93\u5b58"
+          },
+          "after_stock": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Stock",
+            "description": "\u5165\u5e93\u540e\u5e93\u5b58"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "IncreaseStockResponse",
+        "description": "\u5165\u5e93\u54cd\u5e94"
+      },
+      "InventoryLogDetail": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "warehouse_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID"
+          },
+          "product_id": {
+            "type": "integer",
+            "title": "Product Id"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "change_type": {
+            "type": "string",
+            "title": "Change Type"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "before_available": {
+            "type": "integer",
+            "title": "Before Available"
+          },
+          "after_available": {
+            "type": "integer",
+            "title": "After Available"
+          },
+          "before_reserved": {
+            "type": "integer",
+            "title": "Before Reserved",
+            "description": "\u53d8\u66f4\u524d\u9884\u5360\u5e93\u5b58",
+            "default": 0
+          },
+          "after_reserved": {
+            "type": "integer",
+            "title": "After Reserved",
+            "description": "\u53d8\u66f4\u540e\u9884\u5360\u5e93\u5b58",
+            "default": 0
+          },
+          "before_frozen": {
+            "type": "integer",
+            "title": "Before Frozen",
+            "description": "\u53d8\u66f4\u524d\u51bb\u7ed3\u5e93\u5b58",
+            "default": 0
+          },
+          "after_frozen": {
+            "type": "integer",
+            "title": "After Frozen",
+            "description": "\u53d8\u66f4\u540e\u51bb\u7ed3\u5e93\u5b58",
+            "default": 0
+          },
+          "remark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remark",
+            "description": "\u5907\u6ce8"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "product_id",
+          "order_id",
+          "change_type",
+          "quantity",
+          "before_available",
+          "after_available",
+          "created_at",
+          "operator",
+          "source"
+        ],
+        "title": "InventoryLogDetail",
+        "description": "\u5e93\u5b58\u53d8\u66f4\u65e5\u5fd7\u8be6\u60c5"
+      },
+      "OperationResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "\u64cd\u4f5c\u7ed3\u679c"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "OperationResponse",
+        "description": "\u64cd\u4f5c\u54cd\u5e94\uff08\u9884\u5360\u3001\u786e\u8ba4\u3001\u91ca\u653e\uff09"
+      },
+      "PaginatedLogsResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryLogDetail"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "\u65e5\u5fd7\u5217\u8868"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "\u603b\u8bb0\u5f55\u6570"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "description": "\u5f53\u524d\u9875\u7801"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "description": "\u6bcf\u9875\u6570\u91cf"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages",
+            "description": "\u603b\u9875\u6570"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "total",
+          "page",
+          "page_size",
+          "total_pages"
+        ],
+        "title": "PaginatedLogsResponse",
+        "description": "\u5206\u9875\u5e93\u5b58\u6d41\u6c34\u54cd\u5e94"
+      },
+      "StockResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "\u54cd\u5e94\u6d88\u606f"
+          },
+          "warehouse_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID"
+          },
+          "product_id": {
+            "type": "integer",
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID"
+          },
+          "available_stock": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Available Stock",
+            "description": "\u53ef\u7528\u5e93\u5b58"
+          },
+          "reserved_stock": {
+            "type": "integer",
+            "title": "Reserved Stock",
+            "description": "\u9884\u5360\u5e93\u5b58",
+            "default": 0
+          },
+          "frozen_stock": {
+            "type": "integer",
+            "title": "Frozen Stock",
+            "description": "\u51bb\u7ed3\u5e93\u5b58",
+            "default": 0
+          },
+          "in_transit_stock": {
+            "type": "integer",
+            "title": "In Transit Stock",
+            "description": "\u5728\u9014\u5e93\u5b58",
+            "default": 0
+          },
+          "safety_stock": {
+            "type": "integer",
+            "title": "Safety Stock",
+            "description": "\u5b89\u5168\u5e93\u5b58",
+            "default": 0
+          },
+          "total_stock": {
+            "type": "integer",
+            "title": "Total Stock",
+            "description": "\u603b\u5e93\u5b58\uff08\u53ef\u7528+\u9884\u5360+\u51bb\u7ed3+\u5728\u9014\uff09",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "product_id",
+          "available_stock"
+        ],
+        "title": "StockResponse",
+        "description": "\u5355\u4e2a\u5546\u54c1\u5e93\u5b58\u54cd\u5e94"
+      },
+      "UnfreezeStockRequest": {
+        "properties": {
+          "warehouse_id": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Warehouse Id",
+            "description": "\u4ed3\u5e93ID",
+            "example": "WH01"
+          },
+          "product_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Product Id",
+            "description": "\u5546\u54c1ID",
+            "example": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Quantity",
+            "description": "\u89e3\u51bb\u6570\u91cf",
+            "example": 5
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "\u89e3\u51bb\u539f\u56e0",
+            "example": "\u68c0\u9a8c\u901a\u8fc7"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator",
+            "description": "\u64cd\u4f5c\u4eba",
+            "example": "admin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "warehouse_id",
+          "product_id",
+          "quantity"
+        ],
+        "title": "UnfreezeStockRequest",
+        "description": "\u89e3\u51bb\u5e93\u5b58\u8bf7\u6c42"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "\u5e93\u5b58\u7ba1\u7406",
+      "description": "\u5e93\u5b58\u9884\u5360\u3001\u786e\u8ba4\u3001\u91ca\u653e\u7b49\u6838\u5fc3\u64cd\u4f5c"
+    },
+    {
+      "name": "\u5e93\u5b58\u67e5\u8be2",
+      "description": "\u5e93\u5b58\u6570\u91cf\u67e5\u8be2\u63a5\u53e3"
+    },
+    {
+      "name": "\u4efb\u52a1\u7ba1\u7406",
+      "description": "\u6e05\u7406\u4efb\u52a1\u548c\u5f02\u6b65\u4efb\u52a1\u7ba1\u7406"
+    }
+  ]
+}

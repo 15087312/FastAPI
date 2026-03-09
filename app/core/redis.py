@@ -27,15 +27,12 @@ except ImportError:
 try:
     # redlock-ng (推荐，最新 2.0.4) - 注意是小写 Redlock
     from redlock import Redlock
+
 except ImportError:
-    try:
-        # redlock 旧版本（大写 RedLock）
-        from redlock import RedLock as Redlock
-    except ImportError:
-        # 如果都找不到，抛出明确的错误
-        raise ImportError(
-            "未找到 redlock 库，请安装：pip install redlock-py 或 pip install redlock-ng"
-        )
+    # 如果都找不到，抛出明确的错误
+    raise ImportError(
+        "未找到 redlock 库，请安装：pip install redlock-py 或 pip install redlock-ng"
+    )
 
 
 class RedLockAdapter:

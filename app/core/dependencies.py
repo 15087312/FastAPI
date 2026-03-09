@@ -35,7 +35,6 @@ def get_db() -> Session:
 def get_inventory_service(
     db: Session = Depends(get_db),
     redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
 ) -> InventoryService:
     """获取库存服务实例（依赖注入）"""
     return InventoryService(db=db, redis=redis, rlock=rlock)
@@ -45,5 +44,4 @@ def get_inventory_service(
 DatabaseDep = Depends(get_db)
 RedisDep = Depends(get_redis)
 AsyncRedisDep = Depends(get_async_redis)
-RedlockDep = Depends(get_redlock)
 InventoryServiceDep = Depends(get_inventory_service)

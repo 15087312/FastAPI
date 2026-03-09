@@ -37,7 +37,7 @@ def get_inventory_service(
     redis = Depends(get_redis),
 ) -> InventoryService:
     """获取库存服务实例（依赖注入）"""
-    return InventoryService(db=db, redis=redis, rlock=rlock)
+    return InventoryService(db=db, redis=redis)
 
 
 # 常用的依赖注入别名

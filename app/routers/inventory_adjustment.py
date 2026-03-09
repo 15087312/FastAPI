@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis, get_redlock
+from app.core.dependencies import get_db, get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     IncreaseStockResponse,
@@ -58,12 +58,12 @@ router = APIRouter(tags=["库存管理"])
 async def increase_stock(
     request: IncreaseStockRequest = Body(..., description="入库请求"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
+
 ):
     """入库/补货接口"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.increase_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,
@@ -124,12 +124,11 @@ async def increase_stock(
 async def adjust_stock(
     request: AdjustStockRequest = Body(..., description="调整请求"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """库存调整接口"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.adjust_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,
@@ -187,12 +186,11 @@ async def adjust_stock(
 async def freeze_stock(
     request: FreezeStockRequest = Body(..., description="冻结请求"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """冻结库存接口"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.freeze_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,
@@ -244,12 +242,11 @@ async def freeze_stock(
 async def unfreeze_stock(
     request: UnfreezeStockRequest = Body(..., description="解冻请求"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """解冻库存接口"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.unfreeze_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,

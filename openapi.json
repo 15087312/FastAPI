@@ -1,11 +1,11 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "\u5e93\u5b58\u5fae\u670d\u52a1 API",
-    "description": "\u4e13\u4e1a\u7684\u5e93\u5b58\u7ba1\u7406\u5fae\u670d\u52a1\uff0c\u652f\u6301\u9ad8\u5e76\u53d1\u73af\u5883\u4e0b\u7684\u5e93\u5b58\u5b89\u5168\u7ba1\u7406\uff0c\u9632\u6b62\u8d85\u5356\u95ee\u9898\u3002\n                    \n                    ## \ud83d\ude80 \u6838\u5fc3\u7279\u6027\n                    \n                    - **\u9632\u8d85\u5356\u4fdd\u969c** - PostgreSQL \u884c\u7ea7\u9501 + Redis \u5206\u5e03\u5f0f\u9501\u53cc\u91cd\u4fdd\u62a4\n                    - **\u9ad8\u6027\u80fd\u7f13\u5b58** - Redis \u7f13\u5b58\u5c42\u52a0\u901f\u8bfb\u53d6\uff0c\u652f\u6301\u6279\u91cf\u64cd\u4f5c\n                    - **\u591a\u5c42\u67b6\u6784** - API / Celery / CLI \u4e09\u79cd\u8c03\u7528\u65b9\u5f0f\n                    - **\u5b8c\u6574\u5ba1\u8ba1** - \u8be6\u7ec6\u7684\u64cd\u4f5c\u65e5\u5fd7\u548c\u72b6\u6001\u8ffd\u8e2a\n                    - **\u5e42\u7b49\u4fdd\u8bc1** - \u57fa\u4e8e Redis \u7684\u8bf7\u6c42\u53bb\u91cd\u673a\u5236\n                    - **\u4f18\u96c5\u964d\u7ea7** - Redis \u6545\u969c\u65f6\u81ea\u52a8\u964d\u7ea7\u5230\u6570\u636e\u5e93\u6a21\u5f0f\n                    \n                    ## \ud83d\udcda \u6587\u6863\u8bf4\u660e\n                    \n                    - **\u57fa\u7840\u8def\u5f84**: `/api/v1`\n                    - **\u5065\u5eb7\u68c0\u67e5**: `GET /health`\n                    - **API \u6587\u6863**: `GET /docs` (Swagger UI)\n                    - **ReDoc \u6587\u6863**: `GET /redoc` (ReDoc UI)\n                    \n                    ## \ud83d\udd27 \u9519\u8bef\u7801\u8bf4\u660e\n                    \n                    - `200`: \u8bf7\u6c42\u6210\u529f\n                    - `400`: \u8bf7\u6c42\u53c2\u6570\u9519\u8bef\n                    - `404`: \u8d44\u6e90\u672a\u627e\u5230\n                    - `422`: \u8bf7\u6c42\u9a8c\u8bc1\u5931\u8d25\n                    - `429`: \u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41\n                    - `500`: \u670d\u52a1\u5668\u5185\u90e8\u9519\u8bef\n                    \n                    ## \ud83c\udf10 \u5f53\u524d\u8fd0\u884c\u7aef\u53e3\uff1a8000\n                    \u5982\u679c\u7aef\u53e3\u88ab\u5360\u7528\uff0c\u7cfb\u7edf\u5c06\u81ea\u52a8\u5c1d\u8bd5\u4f7f\u7528\u5176\u4ed6\u53ef\u7528\u7aef\u53e3\u3002",
+    "title": "库存微服务 API",
+    "description": "专业的库存管理微服务，支持高并发环境下的库存安全管理，防止超卖问题。\n                    \n                    ## 🚀 核心特性\n                    \n                    - **防超卖保障** - PostgreSQL 行级锁 + Redis 分布式锁双重保护\n                    - **高性能缓存** - Redis 缓存层加速读取，支持批量操作\n                    - **多层架构** - API / Celery / CLI 三种调用方式\n                    - **完整审计** - 详细的操作日志和状态追踪\n                    - **幂等保证** - 基于 Redis 的请求去重机制\n                    - **优雅降级** - Redis 故障时自动降级到数据库模式\n                    \n                    ## 📚 文档说明\n                    \n                    - **基础路径**: `/api/v1`\n                    - **健康检查**: `GET /health`\n                    - **API 文档**: `GET /docs` (Swagger UI)\n                    - **ReDoc 文档**: `GET /redoc` (ReDoc UI)\n                    \n                    ## 🔧 错误码说明\n                    \n                    - `200`: 请求成功\n                    - `400`: 请求参数错误\n                    - `404`: 资源未找到\n                    - `422`: 请求验证失败\n                    - `429`: 请求过于频繁\n                    - `500`: 服务器内部错误\n                    \n                    ## 🌐 当前运行端口：8000\n                    如果端口被占用，系统将自动尝试使用其他可用端口。",
     "termsOfService": "https://example.com/terms/",
     "contact": {
-      "name": "\u5e93\u5b58\u5fae\u670d\u52a1\u56e2\u961f",
+      "name": "库存微服务团队",
       "url": "https://github.com/your-org/inventory-service",
       "email": "inventory@example.com"
     },
@@ -18,22 +18,22 @@
   "servers": [
     {
       "url": "http://localhost:8000",
-      "description": "\u5f00\u53d1\u73af\u5883"
+      "description": "开发环境"
     },
     {
       "url": "https://api.example.com",
-      "description": "\u751f\u4ea7\u73af\u5883"
+      "description": "生产环境"
     }
   ],
   "paths": {
     "/api/v1/inventory/stock/{product_id}": {
       "get": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u67e5\u8be2\u5546\u54c1\u5e93\u5b58",
-        "description": "\u67e5\u8be2\u6307\u5b9a\u5546\u54c1\u7684\u5e93\u5b58\u4fe1\u606f\u3002\n    \n    **\u7f13\u5b58\u7b56\u7565\uff1a**\n    - \u9996\u5148\u67e5\u8be2 Redis \u7f13\u5b58\n    - \u7f13\u5b58\u672a\u547d\u4e2d\u5219\u67e5\u8be2\u6570\u636e\u5e93\n    - \u67e5\u8be2\u7ed3\u679c\u7f13\u5b58 5 \u5206\u949f\n    \n    **\u591a\u4ed3\u652f\u6301\uff1a**\n    - \u9700\u8981\u63d0\u4f9b warehouse_id \u53c2\u6570\n    - \u8fd4\u56de\u5b8c\u6574\u5e93\u5b58\u4fe1\u606f\uff08\u53ef\u7528\u3001\u9884\u5360\u3001\u51bb\u7ed3\u3001\u5728\u9014\u3001\u5b89\u5168\u5e93\u5b58\uff09",
+        "summary": "查询商品库存",
+        "description": "查询指定商品的库存信息。\n    \n    **缓存策略：**\n    - 首先查询 Redis 缓存\n    - 缓存未命中则查询数据库\n    - 查询结果缓存 5 分钟\n    \n    **多仓支持：**\n    - 需要提供 warehouse_id 参数\n    - 返回完整库存信息（可用、预占、冻结、在途、安全库存）",
         "operationId": "get_stock_api_v1_inventory_stock__product_id__get",
         "parameters": [
           {
@@ -43,13 +43,13 @@
             "schema": {
               "type": "integer",
               "exclusiveMinimum": 0,
-              "description": "\u5546\u54c1 ID",
+              "description": "商品 ID",
               "examples": [
                 1
               ],
               "title": "Product Id"
             },
-            "description": "\u5546\u54c1 ID"
+            "description": "商品 ID"
           },
           {
             "name": "warehouse_id",
@@ -59,19 +59,19 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 32,
-              "description": "\u4ed3\u5e93 ID",
+              "description": "仓库 ID",
               "examples": [
                 "WH01"
               ],
               "default": "WH01",
               "title": "Warehouse Id"
             },
-            "description": "\u4ed3\u5e93 ID"
+            "description": "仓库 ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "\u67e5\u8be2\u6210\u529f",
+            "description": "查询成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -107,11 +107,11 @@
     "/api/v1/inventory/stock/batch": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u6279\u91cf\u67e5\u8be2\u5546\u54c1\u5e93\u5b58",
-        "description": "\u6279\u91cf\u67e5\u8be2\u591a\u4e2a\u5546\u54c1\u7684\u5e93\u5b58\u6570\u91cf\u3002\n    \n    **\u4f18\u52bf\uff1a**\n    - \u5355\u6b21\u8bf7\u6c42\u67e5\u8be2\u591a\u4e2a\u5546\u54c1\n    - Redis \u7ba1\u9053\u4f18\u5316\u6279\u91cf\u64cd\u4f5c\n    - \u51cf\u5c11\u7f51\u7edc\u5f80\u8fd4\u6b21\u6570\n    \n    **\u9650\u5236\uff1a**\n    - \u5355\u6b21\u6700\u591a\u67e5\u8be2 100 \u4e2a\u5546\u54c1\n    - \u5efa\u8bae\u6309\u4e1a\u52a1\u573a\u666f\u5408\u7406\u5206\u6279\n    \n    **\u591a\u4ed3\u652f\u6301\uff1a**\n    - \u9700\u8981\u63d0\u4f9b warehouse_id \u53c2\u6570",
+        "summary": "批量查询商品库存",
+        "description": "批量查询多个商品的库存数量。\n    \n    **优势：**\n    - 单次请求查询多个商品\n    - Redis 管道优化批量操作\n    - 减少网络往返次数\n    \n    **限制：**\n    - 单次最多查询 100 个商品\n    - 建议按业务场景合理分批\n    \n    **多仓支持：**\n    - 需要提供 warehouse_id 参数",
         "operationId": "batch_get_stocks_api_v1_inventory_stock_batch_post",
         "parameters": [
           {
@@ -122,14 +122,14 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 32,
-              "description": "\u4ed3\u5e93 ID",
+              "description": "仓库 ID",
               "examples": [
                 "WH01"
               ],
               "default": "WH01",
               "title": "Warehouse Id"
             },
-            "description": "\u4ed3\u5e93 ID"
+            "description": "仓库 ID"
           }
         ],
         "requestBody": {
@@ -142,7 +142,7 @@
                     "$ref": "#/components/schemas/BatchStockQueryRequest"
                   }
                 ],
-                "description": "\u6279\u91cf\u67e5\u8be2\u8bf7\u6c42\u53c2\u6570",
+                "description": "批量查询请求参数",
                 "title": "Request"
               }
             }
@@ -150,7 +150,7 @@
         },
         "responses": {
           "200": {
-            "description": "\u6279\u91cf\u67e5\u8be2\u6210\u529f",
+            "description": "批量查询成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -183,11 +183,11 @@
     "/api/v1/inventory/reserve": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u9884\u5360\u5e93\u5b58",
-        "description": "\u9884\u5360\u6307\u5b9a\u5546\u54c1\u7684\u5e93\u5b58\u6570\u91cf\uff0c\u9632\u6b62\u8d85\u5356\u3002\n    \n    **\u7279\u70b9\uff1a**\n    - \u4f7f\u7528\u6570\u636e\u5e93\u884c\u7ea7\u9501\u786e\u4fdd\u539f\u5b50\u6027\n    - \u652f\u6301\u5206\u5e03\u5f0f\u9501\u9632\u6b62\u5e76\u53d1\u51b2\u7a81\n    - 15 \u5206\u949f\u540e\u81ea\u52a8\u8fc7\u671f\n    - \u5e42\u7b49\u6027\u4fdd\u8bc1\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u7528\u6237\u4e0b\u5355\u65f6\u9884\u5360\u5e93\u5b58\n    - \u8d2d\u7269\u8f66\u7ed3\u7b97\u65f6\u9501\u5b9a\u5546\u54c1\n    \n    **\u591a\u4ed3\u652f\u6301\uff1a**\n    - \u9700\u8981\u63d0\u4f9b warehouse_id \u53c2\u6570",
+        "summary": "预占库存",
+        "description": "预占指定商品的库存数量，防止超卖。\n    \n    **特点：**\n    - 使用数据库行级锁确保原子性\n    - 支持分布式锁防止并发冲突\n    - 15 分钟后自动过期\n    - 幂等性保证\n    \n    **使用场景：**\n    - 用户下单时预占库存\n    - 购物车结算时锁定商品\n    \n    **多仓支持：**\n    - 需要提供 warehouse_id 参数",
         "operationId": "reserve_stock_api_v1_inventory_reserve_post",
         "parameters": [
           {
@@ -198,13 +198,13 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 32,
-              "description": "\u4ed3\u5e93 ID",
+              "description": "仓库 ID",
               "examples": [
                 "WH01"
               ],
               "title": "Warehouse Id"
             },
-            "description": "\u4ed3\u5e93 ID"
+            "description": "仓库 ID"
           },
           {
             "name": "product_id",
@@ -213,13 +213,13 @@
             "schema": {
               "type": "integer",
               "exclusiveMinimum": 0,
-              "description": "\u5546\u54c1 ID",
+              "description": "商品 ID",
               "examples": [
                 1
               ],
               "title": "Product Id"
             },
-            "description": "\u5546\u54c1 ID"
+            "description": "商品 ID"
           },
           {
             "name": "quantity",
@@ -228,13 +228,13 @@
             "schema": {
               "type": "integer",
               "exclusiveMinimum": 0,
-              "description": "\u9884\u5360\u6570\u91cf",
+              "description": "预占数量",
               "examples": [
                 2
               ],
               "title": "Quantity"
             },
-            "description": "\u9884\u5360\u6570\u91cf"
+            "description": "预占数量"
           },
           {
             "name": "order_id",
@@ -244,18 +244,18 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 64,
-              "description": "\u8ba2\u5355 ID",
+              "description": "订单 ID",
               "examples": [
                 "ORD202401010001"
               ],
               "title": "Order Id"
             },
-            "description": "\u8ba2\u5355 ID"
+            "description": "订单 ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "\u9884\u5360\u6210\u529f",
+            "description": "预占成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -263,29 +263,29 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u9884\u5360\u6210\u529f",
+                  "message": "预占成功",
                   "data": true
                 }
               }
             }
           },
           "400": {
-            "description": "\u5e93\u5b58\u4e0d\u8db3\u6216\u91cd\u590d\u9884\u5360",
+            "description": "库存不足或重复预占",
             "content": {
               "application/json": {
                 "examples": {
                   "insufficient_stock": {
-                    "summary": "\u5e93\u5b58\u4e0d\u8db3",
+                    "summary": "库存不足",
                     "value": {
                       "success": false,
-                      "message": "\u5e93\u5b58\u4e0d\u8db3"
+                      "message": "库存不足"
                     }
                   },
                   "duplicate_reservation": {
-                    "summary": "\u91cd\u590d\u9884\u5360",
+                    "summary": "重复预占",
                     "value": {
                       "success": false,
-                      "message": "\u8be5\u8ba2\u5355\u5df2\u9884\u5360\u6b64\u5546\u54c1"
+                      "message": "该订单已预占此商品"
                     }
                   }
                 }
@@ -308,11 +308,11 @@
     "/api/v1/inventory/confirm/{order_id}": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u786e\u8ba4\u5e93\u5b58\u6263\u51cf",
-        "description": "\u786e\u8ba4\u9884\u5360\u7684\u5e93\u5b58\uff0c\u5b9e\u9645\u6263\u51cf\u5546\u54c1\u5e93\u5b58\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u7528\u6237\u652f\u4ed8\u6210\u529f\u540e\u786e\u8ba4\u8ba2\u5355\n    - \u7cfb\u7edf\u81ea\u52a8\u786e\u8ba4\u8d85\u65f6\u8ba2\u5355\n    \n    **\u6ce8\u610f\uff1a**\n    - \u53ea\u80fd\u786e\u8ba4\u72b6\u6001\u4e3a RESERVED \u7684\u9884\u5360\u8bb0\u5f55\n    - \u786e\u8ba4\u540e\u9884\u5360\u72b6\u6001\u53d8\u4e3a CONFIRMED",
+        "summary": "确认库存扣减",
+        "description": "确认预占的库存，实际扣减商品库存。\n    \n    **使用场景：**\n    - 用户支付成功后确认订单\n    - 系统自动确认超时订单\n    \n    **注意：**\n    - 只能确认状态为 RESERVED 的预占记录\n    - 确认后预占状态变为 CONFIRMED",
         "operationId": "confirm_stock_api_v1_inventory_confirm__order_id__post",
         "parameters": [
           {
@@ -321,18 +321,18 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "\u8ba2\u5355 ID",
+              "description": "订单 ID",
               "examples": [
                 "ORD202401010001"
               ],
               "title": "Order Id"
             },
-            "description": "\u8ba2\u5355 ID"
+            "description": "订单 ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "\u786e\u8ba4\u6210\u529f",
+            "description": "确认成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -340,19 +340,19 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u786e\u8ba4\u6210\u529f",
+                  "message": "确认成功",
                   "data": true
                 }
               }
             }
           },
           "404": {
-            "description": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55",
+            "description": "未找到有效的预占记录",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
-                  "message": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55"
+                  "message": "未找到有效的预占记录"
                 }
               }
             }
@@ -373,11 +373,11 @@
     "/api/v1/inventory/release/{order_id}": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u91ca\u653e\u9884\u5360\u5e93\u5b58",
-        "description": "\u91ca\u653e\u9884\u5360\u7684\u5e93\u5b58\uff0c\u5f52\u8fd8\u7ed9\u53ef\u7528\u5e93\u5b58\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u7528\u6237\u53d6\u6d88\u8ba2\u5355\n    - \u8ba2\u5355\u8d85\u65f6\u672a\u652f\u4ed8\n    - \u7cfb\u7edf\u81ea\u52a8\u91ca\u653e\u8fc7\u671f\u9884\u5360\n    \n    **\u6548\u679c\uff1a**\n    - \u589e\u52a0\u53ef\u7528\u5e93\u5b58\n    - \u51cf\u5c11\u9884\u5360\u5e93\u5b58\n    - \u66f4\u65b0\u9884\u5360\u72b6\u6001\u4e3a RELEASED",
+        "summary": "释放预占库存",
+        "description": "释放预占的库存，归还给可用库存。\n    \n    **使用场景：**\n    - 用户取消订单\n    - 订单超时未支付\n    - 系统自动释放过期预占\n    \n    **效果：**\n    - 增加可用库存\n    - 减少预占库存\n    - 更新预占状态为 RELEASED",
         "operationId": "release_stock_api_v1_inventory_release__order_id__post",
         "parameters": [
           {
@@ -386,18 +386,18 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "\u8ba2\u5355 ID",
+              "description": "订单 ID",
               "examples": [
                 "ORD202401010001"
               ],
               "title": "Order Id"
             },
-            "description": "\u8ba2\u5355 ID"
+            "description": "订单 ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "\u91ca\u653e\u6210\u529f",
+            "description": "释放成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -405,19 +405,19 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u91ca\u653e\u6210\u529f",
+                  "message": "释放成功",
                   "data": true
                 }
               }
             }
           },
           "404": {
-            "description": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55",
+            "description": "未找到有效的预占记录",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
-                  "message": "\u672a\u627e\u5230\u6709\u6548\u7684\u9884\u5360\u8bb0\u5f55"
+                  "message": "未找到有效的预占记录"
                 }
               }
             }
@@ -438,11 +438,11 @@
     "/api/v1/inventory/increase": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u5165\u5e93/\u8865\u8d27",
-        "description": "\u589e\u52a0\u5546\u54c1\u5e93\u5b58\uff0c\u7528\u4e8e\u5165\u5e93\u3001\u8865\u8d27\u7b49\u573a\u666f\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u91c7\u8d2d\u5165\u5e93\n    - \u9000\u8d27\u5165\u5e93\n    - \u8c03\u62e8\u5165\u5e93\n    - \u76d8\u70b9\u76c8\u4e8f\u8c03\u6574\n    \n    **\u6ce8\u610f\uff1a**\n    - \u5982\u679c\u5e93\u5b58\u8bb0\u5f55\u4e0d\u5b58\u5728\uff0c\u4f1a\u81ea\u52a8\u521b\u5efa\n    - \u4f1a\u8bb0\u5f55\u5e93\u5b58\u53d8\u66f4\u65e5\u5fd7",
+        "summary": "入库/补货",
+        "description": "增加商品库存，用于入库、补货等场景。\n    \n    **使用场景：**\n    - 采购入库\n    - 退货入库\n    - 调拨入库\n    - 盘点盈亏调整\n    \n    **注意：**\n    - 如果库存记录不存在，会自动创建\n    - 会记录库存变更日志",
         "operationId": "increase_stock_api_v1_inventory_increase_post",
         "requestBody": {
           "content": {
@@ -454,7 +454,7 @@
                   }
                 ],
                 "title": "Request",
-                "description": "\u5165\u5e93\u8bf7\u6c42"
+                "description": "入库请求"
               }
             }
           },
@@ -462,7 +462,7 @@
         },
         "responses": {
           "200": {
-            "description": "\u5165\u5e93\u6210\u529f",
+            "description": "入库成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -470,7 +470,7 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u5165\u5e93\u6210\u529f",
+                  "message": "入库成功",
                   "warehouse_id": "WH01",
                   "product_id": 1,
                   "before_stock": 100,
@@ -496,11 +496,11 @@
     "/api/v1/inventory/adjust": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u5e93\u5b58\u8c03\u6574",
-        "description": "\u624b\u52a8\u8c03\u6574\u5546\u54c1\u5e93\u5b58\uff0c\u652f\u6301\u589e\u52a0\u3001\u51cf\u5c11\u3001\u8bbe\u7f6e\u4e3a\u6307\u5b9a\u503c\u3002\n    \n    **\u8c03\u6574\u7c7b\u578b\uff1a**\n    - increase: \u589e\u52a0\u5e93\u5b58\n    - decrease: \u51cf\u5c11\u5e93\u5b58\n    - set: \u8bbe\u7f6e\u4e3a\u6307\u5b9a\u503c\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u76d8\u70b9\u4fee\u6b63\n    - \u5e93\u5b58\u7ea0\u9519\n    - \u4eba\u5de5\u5e72\u9884",
+        "summary": "库存调整",
+        "description": "手动调整商品库存，支持增加、减少、设置为指定值。\n    \n    **调整类型：**\n    - increase: 增加库存\n    - decrease: 减少库存\n    - set: 设置为指定值\n    \n    **使用场景：**\n    - 盘点修正\n    - 库存纠错\n    - 人工干预",
         "operationId": "adjust_stock_api_v1_inventory_adjust_post",
         "requestBody": {
           "content": {
@@ -512,7 +512,7 @@
                   }
                 ],
                 "title": "Request",
-                "description": "\u8c03\u6574\u8bf7\u6c42"
+                "description": "调整请求"
               }
             }
           },
@@ -520,7 +520,7 @@
         },
         "responses": {
           "200": {
-            "description": "\u8c03\u6574\u6210\u529f",
+            "description": "调整成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -528,7 +528,7 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u8c03\u6574\u6210\u529f",
+                  "message": "调整成功",
                   "warehouse_id": "WH01",
                   "product_id": 1,
                   "before_available": 100,
@@ -555,11 +555,11 @@
     "/api/v1/inventory/freeze": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u51bb\u7ed3\u5e93\u5b58",
-        "description": "\u51bb\u7ed3\u6307\u5b9a\u5e93\u5b58\uff0c\u51bb\u7ed3\u540e\u4e0d\u53ef\u7528\u4e8e\u9884\u5360\u548c\u9500\u552e\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u5f85\u68c0\u54c1\n    - \u5f85\u5b9a\u5206\u914d\n    - \u4e34\u65f6\u9501\u5b9a\n    \n    **\u6ce8\u610f\uff1a**\n    - \u53ea\u80fd\u51bb\u7ed3\u53ef\u7528\u5e93\u5b58\n    - \u51bb\u7ed3\u540e\u5e93\u5b58\u4ece\u53ef\u7528\u8f6c\u4e3a\u51bb\u7ed3\u72b6\u6001",
+        "summary": "冻结库存",
+        "description": "冻结指定库存，冻结后不可用于预占和销售。\n    \n    **使用场景：**\n    - 待检品\n    - 待定分配\n    - 临时锁定\n    \n    **注意：**\n    - 只能冻结可用库存\n    - 冻结后库存从可用转为冻结状态",
         "operationId": "freeze_stock_api_v1_inventory_freeze_post",
         "requestBody": {
           "content": {
@@ -571,7 +571,7 @@
                   }
                 ],
                 "title": "Request",
-                "description": "\u51bb\u7ed3\u8bf7\u6c42"
+                "description": "冻结请求"
               }
             }
           },
@@ -579,7 +579,7 @@
         },
         "responses": {
           "200": {
-            "description": "\u51bb\u7ed3\u6210\u529f",
+            "description": "冻结成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -587,7 +587,7 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u51bb\u7ed3\u6210\u529f",
+                  "message": "冻结成功",
                   "warehouse_id": "WH01",
                   "product_id": 1,
                   "before_frozen": 0,
@@ -612,11 +612,11 @@
     "/api/v1/inventory/unfreeze": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u89e3\u51bb\u5e93\u5b58",
-        "description": "\u89e3\u51bb\u6307\u5b9a\u5e93\u5b58\uff0c\u89e3\u51bb\u540e\u5e93\u5b58\u56de\u5230\u53ef\u7528\u72b6\u6001\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u68c0\u9a8c\u901a\u8fc7\n    - \u5206\u914d\u53d6\u6d88\n    - \u4e34\u65f6\u9501\u5b9a\u91ca\u653e",
+        "summary": "解冻库存",
+        "description": "解冻指定库存，解冻后库存回到可用状态。\n    \n    **使用场景：**\n    - 检验通过\n    - 分配取消\n    - 临时锁定释放",
         "operationId": "unfreeze_stock_api_v1_inventory_unfreeze_post",
         "requestBody": {
           "content": {
@@ -628,7 +628,7 @@
                   }
                 ],
                 "title": "Request",
-                "description": "\u89e3\u51bb\u8bf7\u6c42"
+                "description": "解冻请求"
               }
             }
           },
@@ -636,7 +636,7 @@
         },
         "responses": {
           "200": {
-            "description": "\u89e3\u51bb\u6210\u529f",
+            "description": "解冻成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -644,7 +644,7 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u89e3\u51bb\u6210\u529f",
+                  "message": "解冻成功",
                   "warehouse_id": "WH01",
                   "product_id": 1,
                   "before_frozen": 5,
@@ -669,11 +669,11 @@
     "/api/v1/inventory/reserve-batch": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u6279\u91cf\u9884\u5360\u5e93\u5b58",
-        "description": "\u6279\u91cf\u9884\u5360\u591a\u4e2a\u5546\u54c1\u5e93\u5b58\uff0c\u4fdd\u8bc1\u4e8b\u52a1\u4e00\u81f4\u6027\u3002\n    \n    **\u7279\u70b9\uff1a**\n    - \u5168\u90e8\u6210\u529f\u6216\u5168\u90e8\u56de\u6eda\n    - \u652f\u6301\u591a\u4ed3\u5e93\n    - \u4f7f\u7528\u5206\u5e03\u5f0f\u9501\u9632\u6b62\u5e76\u53d1\n    \n    **\u9650\u5236\uff1a**\n    - \u5355\u6b21\u6700\u591a 100 \u4e2a\u5546\u54c1\n    - \u9884\u5360\u6709\u6548\u671f 15 \u5206\u949f",
+        "summary": "批量预占库存",
+        "description": "批量预占多个商品库存，保证事务一致性。\n    \n    **特点：**\n    - 全部成功或全部回滚\n    - 支持多仓库\n    - 使用分布式锁防止并发\n    \n    **限制：**\n    - 单次最多 100 个商品\n    - 预占有效期 15 分钟",
         "operationId": "batch_reserve_stock_api_v1_inventory_reserve_batch_post",
         "requestBody": {
           "content": {
@@ -685,7 +685,7 @@
                   }
                 ],
                 "title": "Request",
-                "description": "\u6279\u91cf\u9884\u5360\u8bf7\u6c42"
+                "description": "批量预占请求"
               }
             }
           },
@@ -693,7 +693,7 @@
         },
         "responses": {
           "200": {
-            "description": "\u6279\u91cf\u9884\u5360\u6210\u529f",
+            "description": "批量预占成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -701,7 +701,7 @@
                 },
                 "example": {
                   "success": true,
-                  "message": "\u6279\u91cf\u9884\u5360\u6210\u529f",
+                  "message": "批量预占成功",
                   "order_id": "ORD202401010001",
                   "total_items": 2,
                   "success_items": 2,
@@ -711,13 +711,13 @@
                       "warehouse_id": "WH01",
                       "product_id": 1,
                       "success": true,
-                      "message": "\u9884\u5360\u6210\u529f"
+                      "message": "预占成功"
                     },
                     {
                       "warehouse_id": "WH01",
                       "product_id": 2,
                       "success": true,
-                      "message": "\u9884\u5360\u6210\u529f"
+                      "message": "预占成功"
                     }
                   ]
                 }
@@ -740,11 +740,11 @@
     "/api/v1/inventory/release-batch": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u6279\u91cf\u91ca\u653e\u9884\u5360",
-        "description": "\u6279\u91cf\u91ca\u653e\u540c\u4e00\u8ba2\u5355\u7684\u6240\u6709\u9884\u5360\u5e93\u5b58\u3002\n    \n    **\u4f7f\u7528\u573a\u666f\uff1a**\n    - \u6574\u5355\u53d6\u6d88\n    - \u6574\u5355\u9000\u8d27\n    \n    **\u7279\u70b9\uff1a**\n    - \u4e00\u6b21\u6027\u91ca\u653e\u8ba2\u5355\u6240\u6709\u5546\u54c1\n    - \u6279\u91cf\u64cd\u4f5c\u6027\u80fd\u4f18\u5316",
+        "summary": "批量释放预占",
+        "description": "批量释放同一订单的所有预占库存。\n    \n    **使用场景：**\n    - 整单取消\n    - 整单退货\n    \n    **特点：**\n    - 一次性释放订单所有商品\n    - 批量操作性能优化",
         "operationId": "batch_release_stock_api_v1_inventory_release_batch_post",
         "requestBody": {
           "content": {
@@ -756,7 +756,7 @@
                   }
                 ],
                 "title": "Request",
-                "description": "\u6279\u91cf\u91ca\u653e\u8bf7\u6c42"
+                "description": "批量释放请求"
               }
             }
           },
@@ -764,13 +764,13 @@
         },
         "responses": {
           "200": {
-            "description": "\u6279\u91cf\u91ca\u653e\u6210\u529f",
+            "description": "批量释放成功",
             "content": {
               "application/json": {
                 "schema": {},
                 "example": {
                   "success": true,
-                  "message": "\u6279\u91cf\u91ca\u653e\u6210\u529f",
+                  "message": "批量释放成功",
                   "order_id": "ORD202401010001",
                   "released_count": 3
                 }
@@ -793,11 +793,11 @@
     "/api/v1/inventory/logs": {
       "get": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
-        "summary": "\u67e5\u8be2\u5e93\u5b58\u6d41\u6c34",
-        "description": "\u67e5\u8be2\u5e93\u5b58\u53d8\u66f4\u6d41\u6c34\u65e5\u5fd7\uff0c\u652f\u6301\u5206\u9875\u548c\u591a\u79cd\u7b5b\u9009\u6761\u4ef6\u3002\n    \n    **\u7b5b\u9009\u6761\u4ef6\uff1a**\n    - warehouse_id: \u4ed3\u5e93 ID\n    - product_id: \u5546\u54c1 ID\n    - order_id: \u8ba2\u5355 ID\n    - change_type: \u53d8\u66f4\u7c7b\u578b\n    - start_date/end_date: \u65f6\u95f4\u8303\u56f4\n    \n    **\u8fd4\u56de\u5b57\u6bb5\uff1a**\n    - \u53d8\u66f4\u524d\u540e\u5e93\u5b58\uff08\u53ef\u7528\u3001\u9884\u5360\u3001\u51bb\u7ed3\uff09\n    - \u64cd\u4f5c\u4eba\u3001\u6765\u6e90\u3001\u5907\u6ce8",
+        "summary": "查询库存流水",
+        "description": "查询库存变更流水日志，支持分页和多种筛选条件。\n    \n    **筛选条件：**\n    - warehouse_id: 仓库 ID\n    - product_id: 商品 ID\n    - order_id: 订单 ID\n    - change_type: 变更类型\n    - start_date/end_date: 时间范围\n    \n    **返回字段：**\n    - 变更前后库存（可用、预占、冻结）\n    - 操作人、来源、备注",
         "operationId": "get_inventory_logs_api_v1_inventory_logs_get",
         "parameters": [
           {
@@ -813,10 +813,10 @@
                   "type": "null"
                 }
               ],
-              "description": "\u4ed3\u5e93 ID",
+              "description": "仓库 ID",
               "title": "Warehouse Id"
             },
-            "description": "\u4ed3\u5e93 ID"
+            "description": "仓库 ID"
           },
           {
             "name": "product_id",
@@ -832,10 +832,10 @@
                   "type": "null"
                 }
               ],
-              "description": "\u5546\u54c1 ID",
+              "description": "商品 ID",
               "title": "Product Id"
             },
-            "description": "\u5546\u54c1 ID"
+            "description": "商品 ID"
           },
           {
             "name": "order_id",
@@ -850,10 +850,10 @@
                   "type": "null"
                 }
               ],
-              "description": "\u8ba2\u5355 ID",
+              "description": "订单 ID",
               "title": "Order Id"
             },
-            "description": "\u8ba2\u5355 ID"
+            "description": "订单 ID"
           },
           {
             "name": "change_type",
@@ -868,10 +868,10 @@
                   "type": "null"
                 }
               ],
-              "description": "\u53d8\u66f4\u7c7b\u578b",
+              "description": "变更类型",
               "title": "Change Type"
             },
-            "description": "\u53d8\u66f4\u7c7b\u578b"
+            "description": "变更类型"
           },
           {
             "name": "start_date",
@@ -886,10 +886,10 @@
                   "type": "null"
                 }
               ],
-              "description": "\u5f00\u59cb\u65f6\u95f4 (ISO \u683c\u5f0f)",
+              "description": "开始时间 (ISO 格式)",
               "title": "Start Date"
             },
-            "description": "\u5f00\u59cb\u65f6\u95f4 (ISO \u683c\u5f0f)"
+            "description": "开始时间 (ISO 格式)"
           },
           {
             "name": "end_date",
@@ -904,10 +904,10 @@
                   "type": "null"
                 }
               ],
-              "description": "\u7ed3\u675f\u65f6\u95f4 (ISO \u683c\u5f0f)",
+              "description": "结束时间 (ISO 格式)",
               "title": "End Date"
             },
-            "description": "\u7ed3\u675f\u65f6\u95f4 (ISO \u683c\u5f0f)"
+            "description": "结束时间 (ISO 格式)"
           },
           {
             "name": "page",
@@ -916,11 +916,11 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "description": "\u9875\u7801",
+              "description": "页码",
               "default": 1,
               "title": "Page"
             },
-            "description": "\u9875\u7801"
+            "description": "页码"
           },
           {
             "name": "page_size",
@@ -930,16 +930,16 @@
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "description": "\u6bcf\u9875\u6570\u91cf",
+              "description": "每页数量",
               "default": 50,
               "title": "Page Size"
             },
-            "description": "\u6bcf\u9875\u6570\u91cf"
+            "description": "每页数量"
           }
         ],
         "responses": {
           "200": {
-            "description": "\u67e5\u8be2\u6210\u529f",
+            "description": "查询成功",
             "content": {
               "application/json": {
                 "schema": {
@@ -990,11 +990,11 @@
     "/api/v1/inventory/cleanup/manual": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
         "summary": "Manual Cleanup",
-        "description": "\u624b\u52a8\u89e6\u53d1\u6e05\u7406\u4efb\u52a1\uff08\u65b9\u5f0f\u4e8c\uff1aAPI \u76f4\u63a5\u8c03\u7528 Service\uff09",
+        "description": "手动触发清理任务（方式二：API 直接调用 Service）",
         "operationId": "manual_cleanup_api_v1_inventory_cleanup_manual_post",
         "parameters": [
           {
@@ -1033,11 +1033,11 @@
     "/api/v1/inventory/cleanup/celery": {
       "post": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
         "summary": "Celery Cleanup",
-        "description": "\u89e6\u53d1 Celery \u5f02\u6b65\u6e05\u7406\u4efb\u52a1\uff08\u65b9\u5f0f\u4e09\uff1aCelery \u8c03\u7528\uff09",
+        "description": "触发 Celery 异步清理任务（方式三：Celery 调用）",
         "operationId": "celery_cleanup_api_v1_inventory_cleanup_celery_post",
         "parameters": [
           {
@@ -1076,11 +1076,11 @@
     "/api/v1/inventory/cleanup/status/{task_id}": {
       "get": {
         "tags": [
-          "\u5e93\u5b58\u7ba1\u7406",
-          "\u5e93\u5b58\u7ba1\u7406"
+          "库存管理",
+          "库存管理"
         ],
         "summary": "Get Cleanup Status",
-        "description": "\u67e5\u8be2 Celery \u4efb\u52a1\u6267\u884c\u72b6\u6001",
+        "description": "查询 Celery 任务执行状态",
         "operationId": "get_cleanup_status_api_v1_inventory_cleanup_status__task_id__get",
         "parameters": [
           {
@@ -1117,12 +1117,12 @@
     },
     "/health": {
       "get": {
-        "summary": "\u5065\u5eb7\u68c0\u67e5",
-        "description": "\u68c0\u67e5\u670d\u52a1\u662f\u5426\u6b63\u5e38\u8fd0\u884c",
+        "summary": "健康检查",
+        "description": "检查服务是否正常运行",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
-            "description": "\u670d\u52a1\u5065\u5eb7",
+            "description": "服务健康",
             "content": {
               "application/json": {
                 "schema": {
@@ -1142,12 +1142,12 @@
     },
     "/": {
       "get": {
-        "summary": "API \u6839\u8def\u5f84",
-        "description": "API \u670d\u52a1\u7684\u6839\u8def\u5f84\u4fe1\u606f",
+        "summary": "API 根路径",
+        "description": "API 服务的根路径信息",
         "operationId": "read_root__get",
         "responses": {
           "200": {
-            "description": "\u6210\u529f\u8fd4\u56de",
+            "description": "成功返回",
             "content": {
               "application/json": {
                 "schema": {
@@ -1155,7 +1155,7 @@
                   "title": "Response Read Root  Get"
                 },
                 "example": {
-                  "message": "\u6b22\u8fce\u4f7f\u7528\u5e93\u5b58\u5fae\u670d\u52a1",
+                  "message": "欢迎使用库存微服务",
                   "docs": "/docs",
                   "health": "/health"
                 }
@@ -1175,36 +1175,46 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID",
-            "example": "WH01"
+            "description": "仓库 ID",
+            "examples": [
+              "WH01"
+            ]
           },
           "product_id": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Product Id",
-            "description": "\u5546\u54c1ID",
-            "example": 1
+            "description": "商品 ID",
+            "examples": [
+              1
+            ]
           },
           "adjust_type": {
             "type": "string",
             "title": "Adjust Type",
-            "description": "\u8c03\u6574\u7c7b\u578b: increase(\u589e\u52a0) / decrease(\u51cf\u5c11) / set(\u8bbe\u7f6e\u4e3a)",
-            "example": "increase"
+            "description": "调整类型：increase(增加) / decrease(减少) / set(设置为)",
+            "examples": [
+              "increase"
+            ]
           },
           "quantity": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
-            "description": "\u8c03\u6574\u6570\u91cf",
-            "example": 10
+            "description": "调整数量",
+            "examples": [
+              10
+            ]
           },
           "reason": {
             "type": "string",
             "maxLength": 255,
             "minLength": 1,
             "title": "Reason",
-            "description": "\u8c03\u6574\u539f\u56e0",
-            "example": "\u76d8\u70b9\u4fee\u6b63"
+            "description": "调整原因",
+            "examples": [
+              "盘点修正"
+            ]
           },
           "operator": {
             "anyOf": [
@@ -1217,8 +1227,10 @@
               }
             ],
             "title": "Operator",
-            "description": "\u64cd\u4f5c\u4eba",
-            "example": "admin"
+            "description": "操作人",
+            "examples": [
+              "admin"
+            ]
           }
         },
         "type": "object",
@@ -1230,14 +1242,14 @@
           "reason"
         ],
         "title": "AdjustStockRequest",
-        "description": "\u5e93\u5b58\u8c03\u6574\u8bf7\u6c42"
+        "description": "库存调整请求"
       },
       "AdjustStockResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -1249,7 +1261,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "warehouse_id": {
             "anyOf": [
@@ -1261,7 +1273,7 @@
               }
             ],
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID"
+            "description": "仓库ID"
           },
           "product_id": {
             "anyOf": [
@@ -1273,7 +1285,7 @@
               }
             ],
             "title": "Product Id",
-            "description": "\u5546\u54c1ID"
+            "description": "商品ID"
           },
           "before_available": {
             "anyOf": [
@@ -1285,7 +1297,7 @@
               }
             ],
             "title": "Before Available",
-            "description": "\u8c03\u6574\u524d\u53ef\u7528\u5e93\u5b58"
+            "description": "调整前可用库存"
           },
           "after_available": {
             "anyOf": [
@@ -1297,7 +1309,7 @@
               }
             ],
             "title": "After Available",
-            "description": "\u8c03\u6574\u540e\u53ef\u7528\u5e93\u5b58"
+            "description": "调整后可用库存"
           }
         },
         "type": "object",
@@ -1305,7 +1317,7 @@
           "success"
         ],
         "title": "AdjustStockResponse",
-        "description": "\u5e93\u5b58\u8c03\u6574\u54cd\u5e94"
+        "description": "库存调整响应"
       },
       "BatchReleaseRequest": {
         "properties": {
@@ -1314,8 +1326,10 @@
             "maxLength": 64,
             "minLength": 1,
             "title": "Order Id",
-            "description": "\u8ba2\u5355ID",
-            "example": "ORD202401010001"
+            "description": "订单 ID",
+            "examples": [
+              "ORD202401010001"
+            ]
           }
         },
         "type": "object",
@@ -1323,7 +1337,7 @@
           "order_id"
         ],
         "title": "BatchReleaseRequest",
-        "description": "\u6279\u91cf\u91ca\u653e\u8bf7\u6c42"
+        "description": "批量释放请求"
       },
       "BatchReserveItem": {
         "properties": {
@@ -1332,22 +1346,28 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID",
-            "example": "WH01"
+            "description": "仓库 ID",
+            "examples": [
+              "WH01"
+            ]
           },
           "product_id": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Product Id",
-            "description": "\u5546\u54c1ID",
-            "example": 1
+            "description": "商品 ID",
+            "examples": [
+              1
+            ]
           },
           "quantity": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
-            "description": "\u9884\u5360\u6570\u91cf",
-            "example": 2
+            "description": "预占数量",
+            "examples": [
+              2
+            ]
           }
         },
         "type": "object",
@@ -1357,7 +1377,7 @@
           "quantity"
         ],
         "title": "BatchReserveItem",
-        "description": "\u6279\u91cf\u9884\u5360\u5355\u9879"
+        "description": "批量预占单项"
       },
       "BatchReserveItemResponse": {
         "properties": {
@@ -1386,7 +1406,7 @@
           "message"
         ],
         "title": "BatchReserveItemResponse",
-        "description": "\u6279\u91cf\u9884\u5360\u5355\u9879\u54cd\u5e94"
+        "description": "批量预占单项响应"
       },
       "BatchReserveRequest": {
         "properties": {
@@ -1395,8 +1415,10 @@
             "maxLength": 64,
             "minLength": 1,
             "title": "Order Id",
-            "description": "\u8ba2\u5355ID",
-            "example": "ORD202401010001"
+            "description": "订单 ID",
+            "examples": [
+              "ORD202401010001"
+            ]
           },
           "items": {
             "items": {
@@ -1406,18 +1428,20 @@
             "maxItems": 100,
             "minItems": 1,
             "title": "Items",
-            "description": "\u9884\u5360\u5546\u54c1\u5217\u8868",
-            "example": [
-              {
-                "product_id": 1,
-                "quantity": 2,
-                "warehouse_id": "WH01"
-              },
-              {
-                "product_id": 2,
-                "quantity": 3,
-                "warehouse_id": "WH01"
-              }
+            "description": "预占商品列表",
+            "examples": [
+              [
+                {
+                  "product_id": 1,
+                  "quantity": 2,
+                  "warehouse_id": "WH01"
+                },
+                {
+                  "product_id": 2,
+                  "quantity": 3,
+                  "warehouse_id": "WH01"
+                }
+              ]
             ]
           }
         },
@@ -1427,14 +1451,14 @@
           "items"
         ],
         "title": "BatchReserveRequest",
-        "description": "\u6279\u91cf\u9884\u5360\u8bf7\u6c42"
+        "description": "批量预占请求"
       },
       "BatchReserveResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -1446,7 +1470,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "order_id": {
             "anyOf": [
@@ -1458,7 +1482,7 @@
               }
             ],
             "title": "Order Id",
-            "description": "\u8ba2\u5355ID"
+            "description": "订单ID"
           },
           "total_items": {
             "anyOf": [
@@ -1470,7 +1494,7 @@
               }
             ],
             "title": "Total Items",
-            "description": "\u603b\u5546\u54c1\u6570"
+            "description": "总商品数"
           },
           "success_items": {
             "anyOf": [
@@ -1482,7 +1506,7 @@
               }
             ],
             "title": "Success Items",
-            "description": "\u6210\u529f\u5546\u54c1\u6570"
+            "description": "成功商品数"
           },
           "failed_items": {
             "anyOf": [
@@ -1494,7 +1518,7 @@
               }
             ],
             "title": "Failed Items",
-            "description": "\u5931\u8d25\u5546\u54c1\u6570"
+            "description": "失败商品数"
           },
           "details": {
             "anyOf": [
@@ -1509,7 +1533,7 @@
               }
             ],
             "title": "Details",
-            "description": "\u8be6\u7ec6\u7ed3\u679c"
+            "description": "详细结果"
           }
         },
         "type": "object",
@@ -1517,18 +1541,10 @@
           "success"
         ],
         "title": "BatchReserveResponse",
-        "description": "\u6279\u91cf\u9884\u5360\u54cd\u5e94"
+        "description": "批量预占响应"
       },
       "BatchStockQueryRequest": {
         "properties": {
-          "warehouse_id": {
-            "type": "string",
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID",
-            "example": "WH01"
-          },
           "product_ids": {
             "items": {
               "type": "integer"
@@ -1537,28 +1553,29 @@
             "maxItems": 100,
             "minItems": 1,
             "title": "Product Ids",
-            "description": "\u5546\u54c1ID\u5217\u8868",
-            "example": [
-              1,
-              2,
-              3
+            "description": "商品 ID 列表",
+            "examples": [
+              [
+                1,
+                2,
+                3
+              ]
             ]
           }
         },
         "type": "object",
         "required": [
-          "warehouse_id",
           "product_ids"
         ],
         "title": "BatchStockQueryRequest",
-        "description": "\u6279\u91cf\u67e5\u8be2\u5e93\u5b58\u8bf7\u6c42"
+        "description": "批量查询库存请求"
       },
       "BatchStockResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -1570,7 +1587,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "data": {
             "additionalProperties": {
@@ -1578,7 +1595,7 @@
             },
             "type": "object",
             "title": "Data",
-            "description": "\u5546\u54c1ID\u5230\u5e93\u5b58\u6570\u91cf\u7684\u6620\u5c04"
+            "description": "商品ID到库存数量的映射"
           }
         },
         "type": "object",
@@ -1587,7 +1604,7 @@
           "data"
         ],
         "title": "BatchStockResponse",
-        "description": "\u6279\u91cf\u5e93\u5b58\u67e5\u8be2\u54cd\u5e94"
+        "description": "批量库存查询响应"
       },
       "FreezeStockRequest": {
         "properties": {
@@ -1596,22 +1613,28 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID",
-            "example": "WH01"
+            "description": "仓库 ID",
+            "examples": [
+              "WH01"
+            ]
           },
           "product_id": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Product Id",
-            "description": "\u5546\u54c1ID",
-            "example": 1
+            "description": "商品 ID",
+            "examples": [
+              1
+            ]
           },
           "quantity": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
-            "description": "\u51bb\u7ed3\u6570\u91cf",
-            "example": 5
+            "description": "冻结数量",
+            "examples": [
+              5
+            ]
           },
           "reason": {
             "anyOf": [
@@ -1624,8 +1647,10 @@
               }
             ],
             "title": "Reason",
-            "description": "\u51bb\u7ed3\u539f\u56e0",
-            "example": "\u5f85\u68c0\u54c1"
+            "description": "冻结原因",
+            "examples": [
+              "待检品"
+            ]
           },
           "operator": {
             "anyOf": [
@@ -1638,8 +1663,10 @@
               }
             ],
             "title": "Operator",
-            "description": "\u64cd\u4f5c\u4eba",
-            "example": "admin"
+            "description": "操作人",
+            "examples": [
+              "admin"
+            ]
           }
         },
         "type": "object",
@@ -1649,14 +1676,14 @@
           "quantity"
         ],
         "title": "FreezeStockRequest",
-        "description": "\u51bb\u7ed3\u5e93\u5b58\u8bf7\u6c42"
+        "description": "冻结库存请求"
       },
       "FreezeStockResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -1668,7 +1695,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "warehouse_id": {
             "anyOf": [
@@ -1680,7 +1707,7 @@
               }
             ],
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID"
+            "description": "仓库ID"
           },
           "product_id": {
             "anyOf": [
@@ -1692,7 +1719,7 @@
               }
             ],
             "title": "Product Id",
-            "description": "\u5546\u54c1ID"
+            "description": "商品ID"
           },
           "before_frozen": {
             "anyOf": [
@@ -1704,7 +1731,7 @@
               }
             ],
             "title": "Before Frozen",
-            "description": "\u64cd\u4f5c\u524d\u51bb\u7ed3\u5e93\u5b58"
+            "description": "操作前冻结库存"
           },
           "after_frozen": {
             "anyOf": [
@@ -1716,7 +1743,7 @@
               }
             ],
             "title": "After Frozen",
-            "description": "\u64cd\u4f5c\u540e\u51bb\u7ed3\u5e93\u5b58"
+            "description": "操作后冻结库存"
           }
         },
         "type": "object",
@@ -1724,7 +1751,7 @@
           "success"
         ],
         "title": "FreezeStockResponse",
-        "description": "\u51bb\u7ed3/\u89e3\u51bb\u54cd\u5e94"
+        "description": "冻结/解冻响应"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1746,22 +1773,28 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID",
-            "example": "WH01"
+            "description": "仓库 ID",
+            "examples": [
+              "WH01"
+            ]
           },
           "product_id": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Product Id",
-            "description": "\u5546\u54c1ID",
-            "example": 1
+            "description": "商品 ID",
+            "examples": [
+              1
+            ]
           },
           "quantity": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
-            "description": "\u5165\u5e93\u6570\u91cf",
-            "example": 100
+            "description": "入库数量",
+            "examples": [
+              100
+            ]
           },
           "order_id": {
             "anyOf": [
@@ -1774,8 +1807,10 @@
               }
             ],
             "title": "Order Id",
-            "description": "\u5165\u5e93\u5355\u53f7\uff08\u53ef\u9009\uff09",
-            "example": "RK202401010001"
+            "description": "入库单号（可选）",
+            "examples": [
+              "RK202401010001"
+            ]
           },
           "operator": {
             "anyOf": [
@@ -1788,8 +1823,10 @@
               }
             ],
             "title": "Operator",
-            "description": "\u64cd\u4f5c\u4eba",
-            "example": "admin"
+            "description": "操作人",
+            "examples": [
+              "admin"
+            ]
           },
           "remark": {
             "anyOf": [
@@ -1802,8 +1839,10 @@
               }
             ],
             "title": "Remark",
-            "description": "\u5907\u6ce8",
-            "example": "\u5e38\u89c4\u8865\u8d27"
+            "description": "备注",
+            "examples": [
+              "常规补货"
+            ]
           }
         },
         "type": "object",
@@ -1813,14 +1852,14 @@
           "quantity"
         ],
         "title": "IncreaseStockRequest",
-        "description": "\u5165\u5e93/\u8865\u8d27\u8bf7\u6c42"
+        "description": "入库/补货请求"
       },
       "IncreaseStockResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -1832,7 +1871,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "warehouse_id": {
             "anyOf": [
@@ -1844,7 +1883,7 @@
               }
             ],
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID"
+            "description": "仓库ID"
           },
           "product_id": {
             "anyOf": [
@@ -1856,7 +1895,7 @@
               }
             ],
             "title": "Product Id",
-            "description": "\u5546\u54c1ID"
+            "description": "商品ID"
           },
           "before_stock": {
             "anyOf": [
@@ -1868,7 +1907,7 @@
               }
             ],
             "title": "Before Stock",
-            "description": "\u5165\u5e93\u524d\u5e93\u5b58"
+            "description": "入库前库存"
           },
           "after_stock": {
             "anyOf": [
@@ -1880,7 +1919,7 @@
               }
             ],
             "title": "After Stock",
-            "description": "\u5165\u5e93\u540e\u5e93\u5b58"
+            "description": "入库后库存"
           }
         },
         "type": "object",
@@ -1888,7 +1927,7 @@
           "success"
         ],
         "title": "IncreaseStockResponse",
-        "description": "\u5165\u5e93\u54cd\u5e94"
+        "description": "入库响应"
       },
       "InventoryLogDetail": {
         "properties": {
@@ -1906,7 +1945,7 @@
               }
             ],
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID"
+            "description": "仓库ID"
           },
           "product_id": {
             "type": "integer",
@@ -1942,25 +1981,25 @@
           "before_reserved": {
             "type": "integer",
             "title": "Before Reserved",
-            "description": "\u53d8\u66f4\u524d\u9884\u5360\u5e93\u5b58",
+            "description": "变更前预占库存",
             "default": 0
           },
           "after_reserved": {
             "type": "integer",
             "title": "After Reserved",
-            "description": "\u53d8\u66f4\u540e\u9884\u5360\u5e93\u5b58",
+            "description": "变更后预占库存",
             "default": 0
           },
           "before_frozen": {
             "type": "integer",
             "title": "Before Frozen",
-            "description": "\u53d8\u66f4\u524d\u51bb\u7ed3\u5e93\u5b58",
+            "description": "变更前冻结库存",
             "default": 0
           },
           "after_frozen": {
             "type": "integer",
             "title": "After Frozen",
-            "description": "\u53d8\u66f4\u540e\u51bb\u7ed3\u5e93\u5b58",
+            "description": "变更后冻结库存",
             "default": 0
           },
           "remark": {
@@ -1973,7 +2012,7 @@
               }
             ],
             "title": "Remark",
-            "description": "\u5907\u6ce8"
+            "description": "备注"
           },
           "created_at": {
             "type": "string",
@@ -2016,14 +2055,14 @@
           "source"
         ],
         "title": "InventoryLogDetail",
-        "description": "\u5e93\u5b58\u53d8\u66f4\u65e5\u5fd7\u8be6\u60c5"
+        "description": "库存变更日志详情"
       },
       "OperationResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -2035,7 +2074,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "data": {
             "anyOf": [
@@ -2047,7 +2086,7 @@
               }
             ],
             "title": "Data",
-            "description": "\u64cd\u4f5c\u7ed3\u679c"
+            "description": "操作结果"
           }
         },
         "type": "object",
@@ -2055,7 +2094,7 @@
           "success"
         ],
         "title": "OperationResponse",
-        "description": "\u64cd\u4f5c\u54cd\u5e94\uff08\u9884\u5360\u3001\u786e\u8ba4\u3001\u91ca\u653e\uff09"
+        "description": "操作响应（预占、确认、释放）"
       },
       "PaginatedLogsResponse": {
         "properties": {
@@ -2070,27 +2109,27 @@
             },
             "type": "array",
             "title": "Data",
-            "description": "\u65e5\u5fd7\u5217\u8868"
+            "description": "日志列表"
           },
           "total": {
             "type": "integer",
             "title": "Total",
-            "description": "\u603b\u8bb0\u5f55\u6570"
+            "description": "总记录数"
           },
           "page": {
             "type": "integer",
             "title": "Page",
-            "description": "\u5f53\u524d\u9875\u7801"
+            "description": "当前页码"
           },
           "page_size": {
             "type": "integer",
             "title": "Page Size",
-            "description": "\u6bcf\u9875\u6570\u91cf"
+            "description": "每页数量"
           },
           "total_pages": {
             "type": "integer",
             "title": "Total Pages",
-            "description": "\u603b\u9875\u6570"
+            "description": "总页数"
           }
         },
         "type": "object",
@@ -2102,14 +2141,14 @@
           "total_pages"
         ],
         "title": "PaginatedLogsResponse",
-        "description": "\u5206\u9875\u5e93\u5b58\u6d41\u6c34\u54cd\u5e94"
+        "description": "分页库存流水响应"
       },
       "StockResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "\u8bf7\u6c42\u662f\u5426\u6210\u529f"
+            "description": "请求是否成功"
           },
           "message": {
             "anyOf": [
@@ -2121,7 +2160,7 @@
               }
             ],
             "title": "Message",
-            "description": "\u54cd\u5e94\u6d88\u606f"
+            "description": "响应消息"
           },
           "warehouse_id": {
             "anyOf": [
@@ -2133,47 +2172,47 @@
               }
             ],
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID"
+            "description": "仓库ID"
           },
           "product_id": {
             "type": "integer",
             "title": "Product Id",
-            "description": "\u5546\u54c1ID"
+            "description": "商品ID"
           },
           "available_stock": {
             "type": "integer",
             "minimum": 0.0,
             "title": "Available Stock",
-            "description": "\u53ef\u7528\u5e93\u5b58"
+            "description": "可用库存"
           },
           "reserved_stock": {
             "type": "integer",
             "title": "Reserved Stock",
-            "description": "\u9884\u5360\u5e93\u5b58",
+            "description": "预占库存",
             "default": 0
           },
           "frozen_stock": {
             "type": "integer",
             "title": "Frozen Stock",
-            "description": "\u51bb\u7ed3\u5e93\u5b58",
+            "description": "冻结库存",
             "default": 0
           },
           "in_transit_stock": {
             "type": "integer",
             "title": "In Transit Stock",
-            "description": "\u5728\u9014\u5e93\u5b58",
+            "description": "在途库存",
             "default": 0
           },
           "safety_stock": {
             "type": "integer",
             "title": "Safety Stock",
-            "description": "\u5b89\u5168\u5e93\u5b58",
+            "description": "安全库存",
             "default": 0
           },
           "total_stock": {
             "type": "integer",
             "title": "Total Stock",
-            "description": "\u603b\u5e93\u5b58\uff08\u53ef\u7528+\u9884\u5360+\u51bb\u7ed3+\u5728\u9014\uff09",
+            "description": "总库存（可用+预占+冻结+在途）",
             "default": 0
           }
         },
@@ -2184,7 +2223,7 @@
           "available_stock"
         ],
         "title": "StockResponse",
-        "description": "\u5355\u4e2a\u5546\u54c1\u5e93\u5b58\u54cd\u5e94"
+        "description": "单个商品库存响应"
       },
       "UnfreezeStockRequest": {
         "properties": {
@@ -2193,22 +2232,28 @@
             "maxLength": 32,
             "minLength": 1,
             "title": "Warehouse Id",
-            "description": "\u4ed3\u5e93ID",
-            "example": "WH01"
+            "description": "仓库 ID",
+            "examples": [
+              "WH01"
+            ]
           },
           "product_id": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Product Id",
-            "description": "\u5546\u54c1ID",
-            "example": 1
+            "description": "商品 ID",
+            "examples": [
+              1
+            ]
           },
           "quantity": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
-            "description": "\u89e3\u51bb\u6570\u91cf",
-            "example": 5
+            "description": "解冻数量",
+            "examples": [
+              5
+            ]
           },
           "reason": {
             "anyOf": [
@@ -2221,8 +2266,10 @@
               }
             ],
             "title": "Reason",
-            "description": "\u89e3\u51bb\u539f\u56e0",
-            "example": "\u68c0\u9a8c\u901a\u8fc7"
+            "description": "解冻原因",
+            "examples": [
+              "检验通过"
+            ]
           },
           "operator": {
             "anyOf": [
@@ -2235,8 +2282,10 @@
               }
             ],
             "title": "Operator",
-            "description": "\u64cd\u4f5c\u4eba",
-            "example": "admin"
+            "description": "操作人",
+            "examples": [
+              "admin"
+            ]
           }
         },
         "type": "object",
@@ -2246,7 +2295,7 @@
           "quantity"
         ],
         "title": "UnfreezeStockRequest",
-        "description": "\u89e3\u51bb\u5e93\u5b58\u8bf7\u6c42"
+        "description": "解冻库存请求"
       },
       "ValidationError": {
         "properties": {
@@ -2292,16 +2341,16 @@
   },
   "tags": [
     {
-      "name": "\u5e93\u5b58\u7ba1\u7406",
-      "description": "\u5e93\u5b58\u9884\u5360\u3001\u786e\u8ba4\u3001\u91ca\u653e\u7b49\u6838\u5fc3\u64cd\u4f5c"
+      "name": "库存管理",
+      "description": "库存预占、确认、释放等核心操作"
     },
     {
-      "name": "\u5e93\u5b58\u67e5\u8be2",
-      "description": "\u5e93\u5b58\u6570\u91cf\u67e5\u8be2\u63a5\u53e3"
+      "name": "库存查询",
+      "description": "库存数量查询接口"
     },
     {
-      "name": "\u4efb\u52a1\u7ba1\u7406",
-      "description": "\u6e05\u7406\u4efb\u52a1\u548c\u5f02\u6b65\u4efb\u52a1\u7ba1\u7406"
+      "name": "任务管理",
+      "description": "清理任务和异步任务管理"
     }
   ]
 }

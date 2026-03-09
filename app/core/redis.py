@@ -31,7 +31,7 @@ try:
 except ImportError:
     # 如果都找不到，抛出明确的错误
     raise ImportError(
-        "未找到 redlock 库，请安装：pip install redlock-py 或 pip install redlock-ng"
+        "未找到 redlock 库，请安装：pip install redlock-ng"
     )
 
 

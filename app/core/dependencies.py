@@ -8,7 +8,7 @@ from app.db.session import SessionLocal
 from sqlalchemy.orm import Session
 
 # Redis 依赖
-from app.core.redis import redis_client, redlock, async_redis
+from app.core.redis import redis_client,  async_redis
 
 from app.services.inventory_service import InventoryService
 
@@ -21,9 +21,7 @@ def get_async_redis():
     """获取异步 Redis 客户端"""
     return async_redis
 
-def get_redlock():
-    """获取 Redlock 分布式锁实例"""
-    return redlock
+
 
 def get_db() -> Session:
     """获取数据库会话"""

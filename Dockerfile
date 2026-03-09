@@ -65,11 +65,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# Gunicorn 配置（生产环境使用）
-# RUN pip install gunicorn
-
-# 启动命令（生产环境建议使用 gunicorn）
-# CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "app.main:app"]
-
-# 启动命令
+# 生产环境启动命令：使用多进程 uvicorn
+# workers 数量根据 CPU 核心数自动调整
 CMD ["python", "app/main.py"]

@@ -21,31 +21,47 @@ class TestInventoryRouter:
 
     @pytest.fixture
     def test_product(self, real_db_session):
-        """创建测试商品和库存"""
-        product = Product(sku="ROUTER_TEST_001", name="路由测试商品")
-        real_db_session.add(product)
-        real_db_session.flush()
+        """创建或获取测试商品和库存"""
+        # 先尝试查询是否已存在
+        product = real_db_session.query(Product).filter(
+            Product.sku == "ROUTER_TEST_001"
+        ).first()
         
-        stock = ProductStock(
-            warehouse_id="WH01",
-            product_id=product.id,
-            available_stock=100,
-            reserved_stock=0
-        )
-        real_db_session.add(stock)
-        real_db_session.commit()
+        if not product:
+            # 不存在才创建
+            product = Product(sku="ROUTER_TEST_001", name="路由测试商品")
+            real_db_session.add(product)
+            real_db_session.flush()
+            
+            stock = ProductStock(
+                warehouse_id="WH01",
+                product_id=product.id,
+                available_stock=100,
+                reserved_stock=0
+            )
+            real_db_session.add(stock)
+            real_db_session.commit()
+        else:
+            # 如果存在，确保有对应的库存记录
+            stock = real_db_session.query(ProductStock).filter(
+                ProductStock.product_id == product.id,
+                ProductStock.warehouse_id == "WH01"
+            ).first()
+            if not stock:
+                stock = ProductStock(
+                    warehouse_id="WH01",
+                    product_id=product.id,
+                    available_stock=100,
+                    reserved_stock=0
+                )
+                real_db_session.add(stock)
+                real_db_session.commit()
         
         yield product
         
-        # 清理
+        # 清理（只清理预占记录，保留商品和库存）
         real_db_session.query(InventoryReservation).filter(
             InventoryReservation.order_id.like("ROUTER_TEST_%")
-        ).delete()
-        real_db_session.query(ProductStock).filter(
-            ProductStock.product_id == product.id
-        ).delete()
-        real_db_session.query(Product).filter(
-            Product.id == product.id
         ).delete()
         real_db_session.commit()
 
@@ -57,6 +73,10 @@ class TestInventoryRouter:
             "quantity": 2,
             "order_id": "ROUTER_TEST_ORDER_001"
         })
+        
+        # 打印详细响应信息以便调试
+        print(f"\nResponse Status: {response.status_code}")
+        print(f"Response Body: {response.text}")
         
         assert response.status_code == 200
         data = response.json()
@@ -71,6 +91,8 @@ class TestInventoryRouter:
             "quantity": 200,  # 超过可用库存
             "order_id": "ROUTER_TEST_ORDER_002"
         })
+        
+        print(f"\nInsufficient stock - Status: {response.status_code}, Body: {response.text}")
         
         assert response.status_code == 400
         data = response.json()
@@ -127,15 +149,17 @@ class TestInventoryRouter:
     def test_release_stock_success(self, client, test_product, real_db_session):
         """测试成功释放库存"""
         # 先预占
-        client.post("/api/v1/inventory/reserve", params={
+        reserve_response = client.post("/api/v1/inventory/reserve", params={
             "warehouse_id": "WH01",
             "product_id": test_product.id,
             "quantity": 2,
             "order_id": "ROUTER_TEST_ORDER_005"
         })
+        print(f"\nReserve response: {reserve_response.status_code} - {reserve_response.text}")
         
-        # 释放
+        # 确认释放
         response = client.post(f"/api/v1/inventory/release/ROUTER_TEST_ORDER_005")
+        print(f"Release response: {response.status_code} - {response.text}")
         
         assert response.status_code == 200
         data = response.json()

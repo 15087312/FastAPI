@@ -1,5 +1,6 @@
 """测试配置和 fixtures"""
 import pytest
+import os
 from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +9,17 @@ try:
     from redlock import RedLock as Redlock
 except ImportError:
     from redlock import Redlock
+
+# 加载 .env 文件（确保测试时使用正确的环境配置）
+from dotenv import load_dotenv
+# 使用绝对路径，避免工作目录问题
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+env_file = os.path.join(project_root, '.env')
+if os.path.exists(env_file):
+    load_dotenv(env_file)
+    print(f"Loaded .env from: {env_file}")
+else:
+    print(f"Warning: .env not found at {env_file}")
 
 from app.db.base import Base
 from app.core.config import settings
@@ -58,9 +70,10 @@ def real_redis():
 
 @pytest.fixture(scope="function")
 def real_redlock():
-    """创建真实 Redlock 分布式锁实例"""
+    """创建真实 Redlock 分布式锁实例（使用适配器）"""
     try:
-        redlock = Redlock([{"host": "localhost", "port": 6379, "db": 0}])
+        from app.core.redis import create_redlock
+        redlock = create_redlock()
         yield redlock
     except Exception as e:
         pytest.skip(f"Redlock not available: {e}")

@@ -23,8 +23,11 @@ class TestInventoryService:
 
     def test_get_product_stock_cache_hit(self, real_db_session, real_redis, real_redlock):
         """测试缓存命中情况下的库存查询"""
+        import uuid
+        unique_sku = f"TEST_CACHE_HIT_{uuid.uuid4().hex[:8]}"
+        
         # 先插入库存数据到数据库
-        product = Product(sku="TEST001", name="测试商品")
+        product = Product(sku=unique_sku, name="测试商品")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -49,8 +52,11 @@ class TestInventoryService:
 
     def test_get_product_stock_cache_miss(self, real_db_session, real_redis, real_redlock):
         """测试缓存未命中情况下的库存查询"""
+        import uuid
+        unique_sku = f"TEST_CACHE_MISS_{uuid.uuid4().hex[:8]}"
+            
         # 插入库存数据
-        product = Product(sku="TEST002", name="测试商品2")
+        product = Product(sku=unique_sku, name="测试商品 2")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -88,8 +94,11 @@ class TestInventoryService:
 
     def test_reserve_stock_success(self, real_db_session, real_redis, real_redlock):
         """测试成功预占库存"""
+        import uuid
+        unique_sku = f"TEST_RESERVE_OK_{uuid.uuid4().hex[:8]}"
+            
         # 插入库存数据
-        product = Product(sku="TEST003", name="测试商品3")
+        product = Product(sku=unique_sku, name="测试商品 3")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -125,8 +134,11 @@ class TestInventoryService:
 
     def test_reserve_stock_insufficient_stock(self, real_db_session, real_redis, real_redlock):
         """测试库存不足的情况"""
+        import uuid
+        unique_sku = f"TEST_INSUFFICIENT_{uuid.uuid4().hex[:8]}"
+            
         # 插入库存数据
-        product = Product(sku="TEST004", name="测试商品4")
+        product = Product(sku=unique_sku, name="测试商品 4")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -150,8 +162,11 @@ class TestInventoryService:
 
     def test_reserve_stock_duplicate_reservation(self, real_db_session, real_redis, real_redlock):
         """测试重复预占的情况"""
+        import uuid
+        unique_sku = f"TEST_DUPLICATE_{uuid.uuid4().hex[:8]}"
+            
         # 插入库存数据和预占记录
-        product = Product(sku="TEST005", name="测试商品5")
+        product = Product(sku=unique_sku, name="测试商品 5")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -189,8 +204,11 @@ class TestInventoryService:
 
     def test_confirm_stock_success(self, real_db_session, real_redis, real_redlock):
         """测试成功确认库存"""
+        import uuid
+        unique_sku = f"TEST_CONFIRM_OK_{uuid.uuid4().hex[:8]}"
+            
         # 插入库存数据和预占记录
-        product = Product(sku="TEST006", name="测试商品6")
+        product = Product(sku=unique_sku, name="测试商品 6")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -238,8 +256,11 @@ class TestInventoryService:
 
     def test_release_stock_success(self, real_db_session, real_redis, real_redlock):
         """测试成功释放库存"""
+        import uuid
+        unique_sku = f"TEST_RELEASE_OK_{uuid.uuid4().hex[:8]}"
+            
         # 插入库存数据和预占记录
-        product = Product(sku="TEST007", name="测试商品7")
+        product = Product(sku=unique_sku, name="测试商品 7")
         real_db_session.add(product)
         real_db_session.flush()
         
@@ -278,9 +299,13 @@ class TestInventoryService:
 
     def test_batch_get_stocks(self, real_db_session, real_redis, real_redlock):
         """测试批量获取库存"""
+        import uuid
+        unique_sku1 = f"TEST_BATCH_1_{uuid.uuid4().hex[:8]}"
+        unique_sku2 = f"TEST_BATCH_2_{uuid.uuid4().hex[:8]}"
+            
         # 插入多个商品库存
-        product1 = Product(sku="TEST008", name="测试商品8")
-        product2 = Product(sku="TEST009", name="测试商品9")
+        product1 = Product(sku=unique_sku1, name="测试商品 8")
+        product2 = Product(sku=unique_sku2, name="测试商品 9")
         real_db_session.add_all([product1, product2])
         real_db_session.flush()
         

@@ -28,16 +28,24 @@ class InventoryReservationService:
         self.cache_service = cache_service
         self.rlock = rlock
 
-    def _acquire_lock(self, warehouse_id: str, product_id: int, ttl: int = 10000) -> Any:
-        """获取分布式锁"""
+    def _acquire_lock(self, warehouse_id: str, product_id: int, ttl: int = 3000, max_retries: int = 3) -> Any:
+        """获取分布式锁（带重试机制）"""
         if not self.rlock:
             return None
 
         lock_key = f"lock:inventory:{warehouse_id}:{product_id}"
-        lock = self.rlock.lock(lock_key, ttl=ttl)
-        if not lock:
-            raise HTTPException(status_code=429, detail="库存操作冲突，请稍后重试")
-        return lock
+        
+        # 重试机制：最多尝试 3 次
+        for attempt in range(max_retries):
+            lock = self.rlock.lock(lock_key, ttl=ttl)
+            if lock:
+                return lock
+            
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(0.5 * (attempt + 1))  # 递增等待时间
+        
+        raise HTTPException(status_code=429, detail="库存操作冲突，请稍后重试")
 
     def _release_lock(self, lock: Any):
         """释放分布式锁"""

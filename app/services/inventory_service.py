@@ -1,5 +1,6 @@
 """库存服务 Facade - 组合所有库存相关服务"""
 
+import logging
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
@@ -11,6 +12,8 @@ from app.services.inventory_query import InventoryQueryService
 from app.services.inventory_operation import InventoryOperationService
 from app.services.inventory_reservation import InventoryReservationService
 from app.services.inventory_log import InventoryLogService
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryService:

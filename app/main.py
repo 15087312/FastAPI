@@ -20,11 +20,11 @@ try:
     env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
     if os.path.exists(env_file):
         load_dotenv(env_file)
-        print(f"✅ Loaded .env file: {env_file}")
+        print(f"Loaded .env file: {env_file}")
     else:
-        print("⚠️  .env file not found, using default environment variables")
+        print(".env file not found, using default environment variables")
 except ImportError:
-    print("⚠️  python-dotenv not installed, skipping .env loading")
+    print("python-dotenv not installed, skipping .env loading")
 
 from app.db.session import engine
 from app.core.redis import async_redis
@@ -48,12 +48,12 @@ async def lifespan(app: FastAPI):
     # 检查端口占用情况
     actual_port = settings.PORT
     if not is_port_available(settings.HOST, settings.PORT):
-        logger.warning(f"⚠️  Port {settings.PORT} is occupied, trying to find available port...")
+        logger.warning(f"Port {settings.PORT} is occupied, trying to find available port...")
         try:
             actual_port = find_available_port(settings.HOST, settings.PORT + 1)
-            logger.info(f"✅ Found available port: {actual_port}")
+            logger.info(f"Found available port: {actual_port}")
         except RuntimeError as e:
-            logger.error(f"❌ Failed to find available port: {e}")
+            logger.error(f"Failed to find available port: {e}")
             raise
     
     logger.info(f"Server will run on {settings.HOST}:{actual_port}")
@@ -62,18 +62,18 @@ async def lifespan(app: FastAPI):
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-        logger.info("✅ Database connection successful")
+        logger.info("Database connection successful")
     except Exception as e:
-        logger.error("❌ Database connection failed: %s", e)
+        logger.error("Database connection failed: %s", e)
         raise
     
     # Redis 连接检查
     try:
         await async_redis.ping()
-        logger.info("✅ Redis connected successfully")
+        logger.info("Redis connected successfully")
     except Exception as e:
-        logger.warning(f"⚠️  Redis connection failed: {e}")
-        logger.warning("⚠️  Application will run without Redis caching")
+        logger.warning(f"Redis connection failed: {e}")
+        logger.warning("Application will run without Redis caching")
     yield
     
     # 应用关闭时的清理
@@ -190,12 +190,15 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unexpected error: {exc}", exc_info=True)
+    import traceback
+    error_detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    logger.error(f"Unexpected error: {exc}\n{error_detail}")
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
-            "message": "服务器内部错误"
+            "message": f"服务器内部错误: {str(exc)}",
+            "detail": error_detail
         }
     )
 
@@ -282,9 +285,27 @@ if __name__ == "__main__":
             logger.error(f"Failed to find available port: {e}")
             raise
     
+    # 生产环境配置：使用多进程 uvicorn
+    # workers 数量建议：CPU 核心数 * 2 + 1
+    # 开发环境：workers=1 或 2
+    # 生产环境：根据 CPU 核心数调整，一般 4-8 个
+    import multiprocessing
+    cpu_count = multiprocessing.cpu_count()
+    workers = min(cpu_count * 2 + 1, 8)  # 最多 8 个 worker
+    
+    logger.info(f"Starting server with {workers} workers (CPU cores: {cpu_count})")
+    
+    # 注意：reload=True 时 workers 参数不生效，开发环境建议使用单进程
+    # 生产环境设置 DEBUG=False 以启用多进程
+    if settings.DEBUG and workers > 1:
+        logger.warning("DEBUG mode enabled: reload will override workers, using single process")
+    
     uvicorn.run(
         "app.main:app",
         host=host,
         port=port,
-        reload=settings.DEBUG
+        workers=1 if settings.DEBUG else workers,  # DEBUG 模式强制使用 1 个 worker
+        reload=settings.DEBUG,
+        access_log=True,
+        log_level="info"
     )

@@ -24,7 +24,8 @@ def run_tests(test_pattern=None, verbose=False, coverage=False, parallel=False):
     if verbose:
         cmd.append("-v")
     else:
-        cmd.extend(["-q", "--tb=short"])
+        # 使用标准输出格式（介于 -v 和 -q 之间）
+        cmd.extend(["--tb=short"])
 
     # 并行执行选项
     if parallel:
@@ -44,21 +45,21 @@ def run_tests(test_pattern=None, verbose=False, coverage=False, parallel=False):
             "--cov-report=term-missing"
         ])
     
-    print(f"🚀 运行命令: {' '.join(cmd)}")
+    print(f"Running command: {' '.join(cmd)}")
     print("=" * 50)
-    
+        
     try:
         result = subprocess.run(cmd, check=True)
-        print("\n✅ 测试运行完成")
+        print("\nTests completed successfully")
         return result.returncode == 0
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ 测试失败，退出码: {e.returncode}")
+        print(f"\nTests failed with exit code: {e.returncode}")
         return False
 
 
 def run_specific_test(test_name):
     """运行特定测试"""
-    print(f"🔍 运行测试: {test_name}")
+    print(f"Running test: {test_name}")
     return run_tests(test_name, verbose=True)
 
 
@@ -179,8 +180,8 @@ def main():
     success = run_tests(pattern, args.verbose, args.coverage, args.parallel)
         
     if args.coverage and success:
-        print("\n📊 覆盖率报告已生成到 htmlcov/ 目录")
-        print("📁 查看报告：open htmlcov/index.html 或 start htmlcov\\index.html")
+        print("\nCoverage report generated to htmlcov/ directory")
+        print("View report: open htmlcov/index.html or start htmlcov\\index.html")
         
     return 0 if success else 1
 

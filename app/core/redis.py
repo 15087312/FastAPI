@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# 确保加载 .env 文件（防止 PyCharm 等 IDE 未加载环境变量）
+# 确保加载 .env 文件
 try:
     from dotenv import load_dotenv
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))

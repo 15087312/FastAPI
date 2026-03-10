@@ -5,10 +5,7 @@ from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from redis import Redis
-try:
-    from redlock import RedLock as Redlock
-except ImportError:
-    from redlock import Redlock
+
 
 # 加载 .env 文件（确保测试时使用正确的环境配置）
 from dotenv import load_dotenv
@@ -65,19 +62,6 @@ def real_redis():
         redis_client.flushdb()
     except:
         pass
-
-
-
-@pytest.fixture(scope="function")
-def real_redlock():
-    """创建真实 Redlock 分布式锁实例（使用适配器）"""
-    try:
-        from app.core.redis import create_redlock
-        redlock = create_redlock()
-        yield redlock
-    except Exception as e:
-        pytest.skip(f"Redlock not available: {e}")
-
 
 
 

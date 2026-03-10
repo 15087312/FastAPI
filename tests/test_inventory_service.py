@@ -14,14 +14,13 @@ from app.models.product import Product
 class TestInventoryService:
     """库存服务测试类 - 使用真实数据库"""
 
-    def test_init_service(self, real_db_session, real_redis, real_redlock):
+    def test_init_service(self, real_db_session, real_redis):
         """测试服务初始化"""
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         assert service.db == real_db_session
         assert service.redis == real_redis
-        assert service.rlock == real_redlock
 
-    def test_get_product_stock_cache_hit(self, real_db_session, real_redis, real_redlock):
+    def test_get_product_stock_cache_hit(self, real_db_session, real_redis):
         """测试缓存命中情况下的库存查询"""
         import uuid
         unique_sku = f"TEST_CACHE_HIT_{uuid.uuid4().hex[:8]}"
@@ -44,13 +43,13 @@ class TestInventoryService:
         real_redis.setex("stock:available:WH01:50", 300, 50)
         
         # 查询 - 应该命中缓存
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.get_product_stock("WH01", product.id)
         
         # 由于 product.id 不同，缓存未命中，从数据库返回
         assert result >= 0
 
-    def test_get_product_stock_cache_miss(self, real_db_session, real_redis, real_redlock):
+    def test_get_product_stock_cache_miss(self, real_db_session, real_redis):
         """测试缓存未命中情况下的库存查询"""
         import uuid
         unique_sku = f"TEST_CACHE_MISS_{uuid.uuid4().hex[:8]}"
@@ -73,7 +72,7 @@ class TestInventoryService:
         real_redis.delete(f"stock:available:WH01:{product.id}")
         
         # 查询 - 缓存未命中，从数据库查询
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.get_product_stock("WH01", product.id)
         
         assert result == 30
@@ -82,17 +81,17 @@ class TestInventoryService:
         cached = real_redis.get(f"stock:available:WH01:{product.id}")
         assert cached == "30"
 
-    def test_get_product_stock_no_stock_record(self, real_db_session, real_redis, real_redlock):
+    def test_get_product_stock_no_stock_record(self, real_db_session, real_redis):
         """测试商品无库存记录的情况"""
         # 清空缓存
         real_redis.delete("stock:available:WH01:999999")
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.get_product_stock("WH01", 999999)
         
         assert result == 0
 
-    def test_reserve_stock_success(self, real_db_session, real_redis, real_redlock):
+    def test_reserve_stock_success(self, real_db_session, real_redis):
         """测试成功预占库存"""
         import uuid
         unique_sku = f"TEST_RESERVE_OK_{uuid.uuid4().hex[:8]}"
@@ -111,7 +110,7 @@ class TestInventoryService:
         real_db_session.add(stock)
         real_db_session.commit()
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.reserve_stock("WH01", product.id, 2, "ORDER_TEST_001")
         
         assert result is True
@@ -132,7 +131,7 @@ class TestInventoryService:
         cached = real_redis.get(f"stock:available:WH01:{product.id}")
         assert cached is None
 
-    def test_reserve_stock_insufficient_stock(self, real_db_session, real_redis, real_redlock):
+    def test_reserve_stock_insufficient_stock(self, real_db_session, real_redis):
         """测试库存不足的情况"""
         import uuid
         unique_sku = f"TEST_INSUFFICIENT_{uuid.uuid4().hex[:8]}"
@@ -151,7 +150,7 @@ class TestInventoryService:
         real_db_session.add(stock)
         real_db_session.commit()
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         
         with pytest.raises(HTTPException) as exc_info:
             service.reserve_stock("WH01", product.id, 5, "ORDER_TEST_002")
@@ -160,7 +159,7 @@ class TestInventoryService:
         assert "库存不足" in str(exc_info.value.detail)
         real_db_session.rollback()
 
-    def test_reserve_stock_duplicate_reservation(self, real_db_session, real_redis, real_redlock):
+    def test_reserve_stock_duplicate_reservation(self, real_db_session, real_redis):
         """测试重复预占的情况"""
         import uuid
         unique_sku = f"TEST_DUPLICATE_{uuid.uuid4().hex[:8]}"
@@ -194,7 +193,7 @@ class TestInventoryService:
         stock.reserved_stock += 2
         real_db_session.commit()
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         
         with pytest.raises(HTTPException) as exc_info:
             service.reserve_stock("WH01", product.id, 2, "ORDER_TEST_003")
@@ -202,7 +201,7 @@ class TestInventoryService:
         assert exc_info.value.status_code == 400
         assert "该订单已预占此商品" in str(exc_info.value.detail)
 
-    def test_confirm_stock_success(self, real_db_session, real_redis, real_redlock):
+    def test_confirm_stock_success(self, real_db_session, real_redis):
         """测试成功确认库存"""
         import uuid
         unique_sku = f"TEST_CONFIRM_OK_{uuid.uuid4().hex[:8]}"
@@ -231,7 +230,7 @@ class TestInventoryService:
         real_db_session.add(reservation)
         real_db_session.commit()
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.confirm_stock("ORDER_TEST_004")
         
         assert result is True
@@ -244,9 +243,9 @@ class TestInventoryService:
         real_db_session.refresh(stock)
         assert stock.reserved_stock == 0
 
-    def test_confirm_stock_not_found(self, real_db_session, real_redis, real_redlock):
+    def test_confirm_stock_not_found(self, real_db_session, real_redis):
         """测试未找到预占记录"""
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         
         with pytest.raises(HTTPException) as exc_info:
             service.confirm_stock("NONEXISTENT_ORDER")
@@ -254,7 +253,7 @@ class TestInventoryService:
         assert exc_info.value.status_code == 404
         assert "未找到有效的预占记录" in str(exc_info.value.detail)
 
-    def test_release_stock_success(self, real_db_session, real_redis, real_redlock):
+    def test_release_stock_success(self, real_db_session, real_redis):
         """测试成功释放库存"""
         import uuid
         unique_sku = f"TEST_RELEASE_OK_{uuid.uuid4().hex[:8]}"
@@ -283,7 +282,7 @@ class TestInventoryService:
         real_db_session.add(reservation)
         real_db_session.commit()
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.release_stock("ORDER_TEST_005")
         
         assert result is True
@@ -297,7 +296,7 @@ class TestInventoryService:
         assert stock.available_stock == 10
         assert stock.reserved_stock == 0
 
-    def test_batch_get_stocks(self, real_db_session, real_redis, real_redlock):
+    def test_batch_get_stocks(self, real_db_session, real_redis):
         """测试批量获取库存"""
         import uuid
         unique_sku1 = f"TEST_BATCH_1_{uuid.uuid4().hex[:8]}"
@@ -324,7 +323,7 @@ class TestInventoryService:
         real_db_session.add_all([stock1, stock2])
         real_db_session.commit()
         
-        service = InventoryService(real_db_session, real_redis, real_redlock)
+        service = InventoryService(real_db_session, real_redis)
         result = service.batch_get_stocks("WH01", [product1.id, product2.id])
         
         assert result[product1.id] == 30

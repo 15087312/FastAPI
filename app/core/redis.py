@@ -47,6 +47,5 @@ __all__ = [
     "redis_client",
     "async_redis", 
     "sync_redis",
-    "redlock",
     "REDIS_URL"
 ]

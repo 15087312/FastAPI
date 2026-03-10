@@ -4,7 +4,7 @@ import argparse
 import logging
 from app.db.session import SessionLocal
 from app.services.inventory_service import InventoryService
-from app.core.redis import redis_client, redlock
+from app.core.redis import redis_client
 
 # 配置日志
 logging.basicConfig(
@@ -40,7 +40,7 @@ def run_cleanup(batch_size: int = 500, dry_run: bool = False):
             return expired_count
         else:
             # 实际执行清理
-            service = InventoryService(db, redis_client, redlock)
+            service = InventoryService(db, redis_client)
             count = service.cleanup_expired_reservations(batch_size)
             db.commit()
             logger.info(f"清理完成：成功清理 {count} 条过期预占记录")

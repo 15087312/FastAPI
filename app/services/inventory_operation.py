@@ -28,35 +28,6 @@ class InventoryOperationService:
         self.rlock = rlock
         self.query_service = InventoryQueryService(db, cache_service)
 
-    def _acquire_lock(self, warehouse_id: str, product_id: int, ttl: int = 3000, max_retries: int = 3) -> Any:
-        """获取分布式锁（带重试机制）"""
-        if not self.rlock:
-            logger.warning("Redlock 实例为空，无法获取锁")
-            return None
-
-        lock_key = f"lock:inventory:{warehouse_id}:{product_id}"
-        
-        # 重试机制：最多尝试 3 次
-        for attempt in range(max_retries):
-            lock = self.rlock.lock(lock_key, ttl=ttl)
-            
-            if lock:
-                logger.info(f"尝试获取锁 {lock_key}, 结果：成功 (第{attempt + 1}次尝试)")
-                return lock
-            
-            if attempt < max_retries - 1:
-                logger.warning(f"锁获取失败，等待后重试... key={lock_key}, attempt={attempt + 1}/{max_retries}")
-                import time
-                time.sleep(0.5 * (attempt + 1))  # 递增等待时间
-        
-        # 所有重试都失败
-        logger.error(f"无法获取分布式锁（已重试{max_retries}次）: {lock_key}")
-        raise HTTPException(status_code=429, detail="库存操作冲突，请稍后重试")
-
-    def _release_lock(self, lock: Any):
-        """释放分布式锁"""
-        if self.rlock and lock:
-            self.rlock.unlock(lock)
 
     def _invalidate_cache(self, warehouse_id: str, product_id: int):
         """失效缓存"""

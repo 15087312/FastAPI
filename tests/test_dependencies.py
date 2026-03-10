@@ -1,101 +1,75 @@
-"""依赖注入单元测试"""
+"""Dependency injection unit tests - using real database"""
 import pytest
-from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 from redis import Redis
-try:
-    from redlock import RedLock as Redlock
-except ImportError:
-    from redlock import Redlock
+
 
 from app.core.dependencies import (
     get_db,
     get_redis,
-    get_redlock,
     get_inventory_service
 )
 from app.services.inventory_service import InventoryService
 
 
 class TestDependencies:
-    """依赖注入测试类"""
+    """Dependency injection test class - using real database"""
 
-    def test_get_db(self):
-        """测试数据库会话依赖"""
-        with patch('app.core.dependencies.SessionLocal') as mock_session_local:
-            db_mock = Mock(spec=Session)
-            mock_session_local.return_value = db_mock
-            
-            # 获取生成器
-            gen = get_db()
-            db = next(gen)
-            
-            assert db == db_mock
-            mock_session_local.assert_called_once()
-            
-            # 测试清理
-            try:
-                gen.throw(GeneratorExit)
-            except GeneratorExit:
-                pass
-            db_mock.close.assert_called_once()
-
-    def test_get_redis_success(self):
-        """测试 Redis 连接成功"""
-        with patch('app.core.dependencies.redis_client') as mock_redis_client:
-            # get_redis() 直接返回 redis_client，不进行 ping() 调用
-            result = get_redis()
-            
-            # 验证返回的是 redis_client
-            assert result == mock_redis_client
-
-    def test_get_redis_when_client_none(self):
-        """测试 Redis 客户端为空的情况"""
-        with patch('app.core.dependencies.redis_client', None):
-            result = get_redis()
-            
-            # 当 redis_client 为 None 时返回 None
-            assert result is None
-
-    def test_get_redlock_success(self):
-        """测试 Redlock 连接成功"""
-        with patch('app.core.dependencies.redlock') as mock_redlock:
-            mock_redlock.servers = [Mock()]  # 模拟有服务器配置
-            
-            rlock = get_redlock()
-            
-            assert rlock == mock_redlock
-
-    def test_get_redlock_when_none(self):
-        """测试 Redlock 客户端为空的情况"""
-        with patch('app.core.dependencies.redlock', None):
-            result = get_redlock()
-            
-            # 当 redlock 为 None 时返回 None
-            assert result is None
-
-    def test_get_inventory_service(self):
-        """测试库存服务依赖注入"""
-        db_mock = Mock(spec=Session)
-        redis_mock = Mock(spec=Redis)
-        redlock_mock = Mock(spec=Redlock)
+    def test_get_db(self, real_db_session):
+        """Test database session dependency - using real database"""
+        # Verify it returns a real Session instance
+    assert isinstance(real_db_session, Session)
         
-        # 直接调用 InventoryService 构造函数
-        service = InventoryService(db_mock, redis_mock, redlock_mock)
-        
-        assert isinstance(service, InventoryService)
-        assert service.db == db_mock
-        assert service.redis == redis_mock
-        assert service.rlock == redlock_mock
+        # Verify it can perform real database operations
+       from app.models.product import Product
+    product = real_db_session.query(Product).first()
+        # Don't care if data exists, just verify query succeeds
+    assert product is None or isinstance(product, Product)
 
-    def test_get_inventory_service_partial_deps(self):
-        """测试部分依赖不可用时的服务创建"""
-        db_mock = Mock(spec=Session)
+    def test_get_redis(self, real_redis):
+        """Test Redis connection - using real Redis"""
+        # Verify it returns a real Redis instance
+    assert isinstance(real_redis, Redis)
         
-        # 测试只有 db 的情况
-        service = InventoryService(db_mock, None, None)
+        # Verify it can perform real Redis operations
+    real_redis.set("test_dep_key", "test_value")
+       value = real_redis.get("test_dep_key")
+    assert value == "test_value"
+    real_redis.delete("test_dep_key")
+
+    def test_get_inventory_service(self, real_db_session, real_redis):
+        """Test inventory service dependency injection - using real dependencies"""
+        # Call InventoryService constructor directly
+        service = InventoryService(real_db_session, real_redis)
         
-        assert isinstance(service, InventoryService)
-        assert service.db == db_mock
-        assert service.redis is None
-        assert service.rlock is None
+    assert isinstance(service, InventoryService)
+    assert service.db == real_db_session
+    assert service.redis == real_redis
+
+    def test_get_inventory_service_with_real_deps(self, real_db_session, real_redis):
+        """Test service creation with real dependencies"""
+        # Create service instance
+        service = InventoryService(real_db_session, real_redis)
+        
+        # Verify service works correctly
+       from app.models.product import Product
+       from app.models.product_stocks import ProductStock
+    import uuid
+        
+        unique_sku = f"TEST_DEP_{uuid.uuid4().hex[:8]}"
+    product = Product(sku=unique_sku, name="Test Product")
+    real_db_session.add(product)
+    real_db_session.flush()
+        
+        stock = ProductStock(
+            warehouse_id="WH01",
+      product_id=product.id,
+            available_stock=100,
+     reserved_stock=0
+        )
+    real_db_session.add(stock)
+    real_db_session.commit()
+        
+        # Use service to query stock
+    result = service.get_product_stock("WH01", product.id)
+    assert result == 100

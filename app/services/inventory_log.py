@@ -15,17 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 class InventoryLogService:
-    """库存日志服务"""
+    """库存日志服务
+    
+    使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
+    """
 
     def __init__(
         self,
         db: Session,
-        cache_service: InventoryCacheService = None,
-        rlock: Any = None
+        cache_service: InventoryCacheService = None
     ):
         self.db = db
         self.cache_service = cache_service
-        self.rlock = rlock
 
     def _invalidate_cache(self, warehouse_id: str, product_id: int):
         """失效缓存"""
@@ -79,7 +80,10 @@ class InventoryLogService:
         }
 
     def cleanup_expired_reservations(self, batch_size: int = 500) -> int:
-        """清理过期的库存预占记录（企业级实现）"""
+        """清理过期的库存预占记录
+        
+        使用数据库行级锁 (SELECT FOR UPDATE skip_locked=True) 保证并发安全
+        """
         total_cleaned = 0
 
         while True:
@@ -99,70 +103,56 @@ class InventoryLogService:
 
                 logger.info(f"本次清理 {len(expired_reservations)} 条过期预占记录")
 
-                locks = []
-                if self.rlock:
-                    for r in expired_reservations:
-                        lock_key = f"lock:inventory:{r.warehouse_id}:{r.product_id}"
-                        lock = self.rlock.lock(lock_key, ttl=5000)
-                        if lock:
-                            locks.append((lock, r.warehouse_id, r.product_id))
+                for reservation in expired_reservations:
+                    try:
+                        product_stock = self.db.execute(
+                            select(ProductStock)
+                            .where(
+                                ProductStock.warehouse_id == reservation.warehouse_id,
+                                ProductStock.product_id == reservation.product_id
+                            )
+                            .with_for_update()
+                        ).scalar_one_or_none()
 
-                try:
-                    for reservation in expired_reservations:
-                        try:
-                            product_stock = self.db.execute(
-                                select(ProductStock)
-                                .where(
-                                    ProductStock.warehouse_id == reservation.warehouse_id,
-                                    ProductStock.product_id == reservation.product_id
-                                )
-                                .with_for_update()
-                            ).scalar_one_or_none()
+                        if product_stock:
+                            product_stock.available_stock += reservation.quantity
+                            product_stock.reserved_stock -= reservation.quantity
 
-                            if product_stock:
-                                product_stock.available_stock += reservation.quantity
-                                product_stock.reserved_stock -= reservation.quantity
+                        reservation.status = ReservationStatus.RELEASED
 
-                            reservation.status = ReservationStatus.RELEASED
+                        if product_stock:
+                            log = InventoryLog(
+                                warehouse_id=reservation.warehouse_id,
+                                product_id=reservation.product_id,
+                                order_id=reservation.order_id,
+                                change_type=ChangeType.RELEASE,
+                                quantity=reservation.quantity,
+                                before_available=product_stock.available_stock - reservation.quantity,
+                                after_available=product_stock.available_stock,
+                                before_reserved=product_stock.reserved_stock + reservation.quantity,
+                                after_reserved=product_stock.reserved_stock,
+                                before_frozen=product_stock.frozen_stock,
+                                after_frozen=product_stock.frozen_stock,
+                                operator="system_cleanup",
+                                source="cleanup_job"
+                            )
+                            self.db.add(log)
 
-                            if product_stock:
-                                log = InventoryLog(
-                                    warehouse_id=reservation.warehouse_id,
-                                    product_id=reservation.product_id,
-                                    order_id=reservation.order_id,
-                                    change_type=ChangeType.RELEASE,
-                                    quantity=reservation.quantity,
-                                    before_available=product_stock.available_stock - reservation.quantity,
-                                    after_available=product_stock.available_stock,
-                                    before_reserved=product_stock.reserved_stock + reservation.quantity,
-                                    after_reserved=product_stock.reserved_stock,
-                                    before_frozen=product_stock.frozen_stock,
-                                    after_frozen=product_stock.frozen_stock,
-                                    operator="system_cleanup",
-                                    source="cleanup_job"
-                                )
-                                self.db.add(log)
+                        total_cleaned += 1
 
-                            total_cleaned += 1
+                    except Exception as e:
+                        logger.error(f"清理单条预占记录失败: order_id={reservation.order_id}, error={str(e)}")
+                        continue
 
-                        except Exception as e:
-                            logger.error(f"清理单条预占记录失败: order_id={reservation.order_id}, error={str(e)}")
-                            continue
+                self.db.commit()
 
-                    self.db.commit()
+                for r in expired_reservations:
+                    self._invalidate_cache(r.warehouse_id, r.product_id)
 
-                    for r in expired_reservations:
-                        self._invalidate_cache(r.warehouse_id, r.product_id)
+                logger.info(f"已完成批次清理，累计清理 {total_cleaned} 条记录")
 
-                    logger.info(f"已完成批次清理，累计清理 {total_cleaned} 条记录")
-
-                    if len(expired_reservations) < batch_size:
-                        break
-
-                finally:
-                    if self.rlock and locks:
-                        for lock, _, _ in locks:
-                            self.rlock.unlock(lock)
+                if len(expired_reservations) < batch_size:
+                    break
 
             except Exception as e:
                 logger.error(f"批处理清理过程中发生错误: {str(e)}")

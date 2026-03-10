@@ -20,12 +20,10 @@ class InventoryOperationService:
     def __init__(
         self,
         db: Session,
-        cache_service: InventoryCacheService = None,
-        rlock: Any = None
+        cache_service: InventoryCacheService = None
     ):
         self.db = db
         self.cache_service = cache_service
-        self.rlock = rlock
         self.query_service = InventoryQueryService(db, cache_service)
 
 
@@ -37,16 +35,14 @@ class InventoryOperationService:
     def increase_stock(
         self,
         warehouse_id: str,
-        product_id: int,
+       product_id: int,
         quantity: int,
         order_id: Optional[str] = None,
         operator: Optional[str] = None,
-        remark: Optional[str] = None,
-        source: str = "manual"
+       remark: Optional[str] = None,
+       source: str = "manual"
     ) -> Dict[str, Any]:
-        """入库/补货"""
-        lock = self._acquire_lock(warehouse_id, product_id)
-
+        """入库/补货 - 使用数据库行级锁"""
         try:
             stock = self.query_service._get_or_create_stock(warehouse_id, product_id)
 
@@ -86,24 +82,20 @@ class InventoryOperationService:
 
         except Exception as e:
             self.db.rollback()
-            logger.error(f"入库失败: {str(e)}")
+            logger.error(f"入库失败：{str(e)}")
             raise
-        finally:
-            self._release_lock(lock)
 
     def adjust_stock(
         self,
         warehouse_id: str,
-        product_id: int,
+       product_id: int,
         adjust_type: str,
         quantity: int,
-        reason: str,
+       reason: str,
         operator: Optional[str] = None,
-        source: str = "manual"
+       source: str = "manual"
     ) -> Dict[str, Any]:
-        """库存调整（增加/减少/设置）"""
-        lock = self._acquire_lock(warehouse_id, product_id)
-
+        """库存调整（增加/减少/设置） - 使用数据库行级锁"""
         try:
             stock = self.query_service._get_or_create_stock(warehouse_id, product_id)
 
@@ -160,22 +152,18 @@ class InventoryOperationService:
             raise
         except Exception as e:
             self.db.rollback()
-            logger.error(f"库存调整失败: {str(e)}")
+            logger.error(f"库存调整失败：{str(e)}")
             raise
-        finally:
-            self._release_lock(lock)
 
     def freeze_stock(
         self,
         warehouse_id: str,
-        product_id: int,
+       product_id: int,
         quantity: int,
-        reason: Optional[str] = None,
+       reason: Optional[str] = None,
         operator: Optional[str] = None
     ) -> Dict[str, Any]:
-        """冻结库存"""
-        lock = self._acquire_lock(warehouse_id, product_id)
-
+        """冻结库存 - 使用数据库行级锁"""
         try:
             stock = self.db.execute(
                 select(ProductStock)
@@ -230,22 +218,18 @@ class InventoryOperationService:
             raise
         except Exception as e:
             self.db.rollback()
-            logger.error(f"冻结库存失败: {str(e)}")
+            logger.error(f"冻结库存失败：{str(e)}")
             raise
-        finally:
-            self._release_lock(lock)
 
     def unfreeze_stock(
         self,
         warehouse_id: str,
-        product_id: int,
+       product_id: int,
         quantity: int,
-        reason: Optional[str] = None,
+       reason: Optional[str] = None,
         operator: Optional[str] = None
     ) -> Dict[str, Any]:
-        """解冻库存"""
-        lock = self._acquire_lock(warehouse_id, product_id)
-
+        """解冻库存 - 使用数据库行级锁"""
         try:
             stock = self.db.execute(
                 select(ProductStock)
@@ -300,7 +284,5 @@ class InventoryOperationService:
             raise
         except Exception as e:
             self.db.rollback()
-            logger.error(f"解冻库存失败: {str(e)}")
+            logger.error(f"解冻库存失败：{str(e)}")
             raise
-        finally:
-            self._release_lock(lock)

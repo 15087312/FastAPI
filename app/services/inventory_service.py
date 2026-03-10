@@ -19,19 +19,19 @@ logger = logging.getLogger(__name__)
 class InventoryService:
     """库存服务 Facade - 统一入口，组合所有子服务"""
 
-    def __init__(self, db: Session, redis: Redis = None, rlock: Any = None):
+    def __init__(self, db: Session, redis: Redis = None):
         self.db = db
         self.redis = redis
-        self.rlock = rlock
 
         # 初始化缓存服务
         self.cache_service = InventoryCacheService(redis)
 
         # 初始化子服务（共享缓存服务和数据库会话）
+        # 使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
         self.query_service = InventoryQueryService(db, self.cache_service)
-        self.operation_service = InventoryOperationService(db, self.cache_service, rlock)
-        self.reservation_service = InventoryReservationService(db, self.cache_service, rlock)
-        self.log_service = InventoryLogService(db, self.cache_service, rlock)
+        self.operation_service = InventoryOperationService(db, self.cache_service)
+        self.reservation_service = InventoryReservationService(db, self.cache_service)
+        self.log_service = InventoryLogService(db, self.cache_service)
 
     # ==================== 缓存相关 ====================
 

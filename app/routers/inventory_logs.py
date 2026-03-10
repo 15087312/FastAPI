@@ -6,7 +6,7 @@ from datetime import datetime as dt
 from typing import Optional
 import logging
 
-from app.core.dependencies import get_db, get_redis, get_redlock
+from app.core.dependencies import get_db, get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     PaginatedLogsResponse,
@@ -85,15 +85,14 @@ async def get_inventory_logs(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """查询库存流水日志"""
     try:
         start_dt = dt.fromisoformat(start_date) if start_date else None
         end_dt = dt.fromisoformat(end_date) if end_date else None
 
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.get_inventory_logs(
             warehouse_id=warehouse_id,
             product_id=product_id,
@@ -146,12 +145,11 @@ async def get_inventory_logs(
 async def manual_cleanup(
     batch_size: int = 500,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """手动触发清理任务（方式二：API 直接调用 Service）"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         count = service.cleanup_expired_reservations(batch_size)
         db.commit()
         return {

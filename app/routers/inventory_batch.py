@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis, get_redlock
+from app.core.dependencies import get_db, get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     BatchReserveResponse,
@@ -66,12 +66,11 @@ router = APIRouter(tags=["库存管理"])
 async def batch_reserve_stock(
     request: BatchReserveRequest = Body(..., description="批量预占请求"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """批量预占库存接口"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         items = [
             {"warehouse_id": item.warehouse_id, "product_id": item.product_id, "quantity": item.quantity}
             for item in request.items
@@ -121,12 +120,11 @@ async def batch_reserve_stock(
 async def batch_release_stock(
     request: BatchReleaseRequest = Body(..., description="批量释放请求"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """批量释放预占库存接口"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         count = service.release_stock(request.order_id)
         return {
             "success": True,

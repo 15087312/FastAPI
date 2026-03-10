@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis, get_redlock
+from app.core.dependencies import get_db, get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import OperationResponse
 
@@ -97,12 +97,11 @@ async def reserve_stock(
         examples=["ORD202401010001"]
     ),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """预占库存（支持多仓库）"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.reserve_stock(warehouse_id, product_id, quantity, order_id)
         return {"success": True, "message": "预占成功", "data": result}
     except HTTPException:
@@ -159,12 +158,11 @@ async def confirm_stock(
         examples=["ORD202401010001"]
     ),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """确认库存扣减（支付成功后调用）"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.confirm_stock(order_id)
         return {"success": True, "message": "确认成功", "data": result}
     except HTTPException:
@@ -223,12 +221,11 @@ async def release_stock(
         examples=["ORD202401010001"]
     ),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """释放预占库存（归还给可用库存）"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         result = service.release_stock(order_id)
         return {"success": True, "message": "释放成功", "data": result}
     except HTTPException:

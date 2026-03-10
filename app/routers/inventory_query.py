@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Path
 from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis, get_redlock
+from app.core.dependencies import get_db, get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     StockResponse,
@@ -67,12 +67,11 @@ async def get_stock(
         examples=["WH01"]
     ),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
                         ):
     """查询商品库存（支持多仓库）"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         stock_info = service.get_full_stock_info(warehouse_id, product_id)
         if not stock_info:
             return StockResponse(
@@ -146,12 +145,11 @@ async def batch_get_stocks(
         description="批量查询请求参数"
     ),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    rlock = Depends(get_redlock)
+    redis = Depends(get_redis)
 ):
     """批量查询商品库存（支持多仓库）"""
     try:
-        service = InventoryService(db, redis, rlock)
+        service = InventoryService(db, redis)
         stocks = service.batch_get_stocks(warehouse_id, request.product_ids)
         return BatchStockResponse(
             success=True,

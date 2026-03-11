@@ -310,17 +310,13 @@ class StockResponse(BaseResponse):
         0,
         description="冻结库存"
     )
-    in_transit_stock: int = Field(
-        0,
-        description="在途库存"
-    )
     safety_stock: int = Field(
         0,
         description="安全库存"
     )
     total_stock: int = Field(
         0,
-        description="总库存（可用+预占+冻结+在途）"
+        description="总库存（可用 + 预占 + 冻结）"
     )
 
 

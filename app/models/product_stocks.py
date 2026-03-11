@@ -59,13 +59,6 @@ class ProductStock(Base):
         comment="冻结库存（如待检品、待定分配）",
     )
 
-    in_transit_stock = Column(
-        Integer,
-        nullable=False,
-        server_default="0",
-        comment="在途库存（已下单未入库）",
-    )
-
     safety_stock = Column(
         Integer,
         nullable=False,
@@ -112,10 +105,6 @@ class ProductStock(Base):
         CheckConstraint(
             "frozen_stock >= 0",
             name="ck_frozen_stock_non_negative",
-        ),
-        CheckConstraint(
-            "in_transit_stock >= 0",
-            name="ck_in_transit_stock_non_negative",
         ),
         CheckConstraint(
             "safety_stock >= 0",

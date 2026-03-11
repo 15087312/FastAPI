@@ -58,11 +58,10 @@ class InventoryQueryService:
             "available_stock": stock.available_stock,
             "reserved_stock": stock.reserved_stock,
             "frozen_stock": stock.frozen_stock,
-            "in_transit_stock": stock.in_transit_stock,
             "safety_stock": stock.safety_stock,
             "total_stock": (
                 stock.available_stock + stock.reserved_stock +
-                stock.frozen_stock + stock.in_transit_stock
+                stock.frozen_stock
             )
         }
 
@@ -87,7 +86,6 @@ class InventoryQueryService:
                 available_stock=0,
                 reserved_stock=0,
                 frozen_stock=0,
-                in_transit_stock=0,
                 safety_stock=0
             )
             self.db.add(stock)

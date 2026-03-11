@@ -72,7 +72,6 @@ def init_test_data() -> bool:
                     available_stock=stock_amount,
                     reserved_stock=0,
                     frozen_stock=0,
-                    in_transit_stock=0,
                     safety_stock=10
                 )
                 db.add(stock)

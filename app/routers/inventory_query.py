@@ -29,7 +29,7 @@ router = APIRouter(tags=["库存管理"])
     
     **多仓支持：**
     - 需要提供 warehouse_id 参数
-    - 返回完整库存信息（可用、预占、冻结、在途、安全库存）
+    - 返回完整库存信息（可用、预占、冻结、安全库存）
     """,
     responses={
         200: {
@@ -43,9 +43,8 @@ router = APIRouter(tags=["库存管理"])
                         "available_stock": 100,
                         "reserved_stock": 10,
                         "frozen_stock": 5,
-                        "in_transit_stock": 20,
                         "safety_stock": 10,
-                        "total_stock": 135
+                        "total_stock": 115
                     }
                 }
             }
@@ -81,7 +80,6 @@ async def get_stock(
                 available_stock=0,
                 reserved_stock=0,
                 frozen_stock=0,
-                in_transit_stock=0,
                 safety_stock=0,
                 total_stock=0
             )

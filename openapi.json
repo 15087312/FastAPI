@@ -1115,6 +1115,356 @@
         }
       }
     },
+    "/api/v1/perf/health": {
+      "get": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "健康检查性能测试",
+        "description": "测试健康检查接口的性能\n\n- **concurrency**: 并发请求数\n- **requests**: 总请求数\n\n返回 QPS、延迟、成功率等性能指标",
+        "operationId": "test_health_api_v1_perf_health_get",
+        "parameters": [
+          {
+            "name": "concurrency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "description": "并发数",
+              "default": 100,
+              "title": "Concurrency"
+            },
+            "description": "并发数"
+          },
+          {
+            "name": "requests",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 1,
+              "description": "请求数",
+              "default": 1000,
+              "title": "Requests"
+            },
+            "description": "请求数"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/single": {
+      "post": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "单个 API 性能测试",
+        "description": "测试单个 API 的性能\n\n可以指定任意 API 路径、方法和数据进行测试",
+        "operationId": "test_single_api_api_v1_perf_single_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SinglePerfTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerfTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/inventory": {
+      "post": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "库存 API 性能测试套件",
+        "description": "测试所有库存相关 API 的性能\n\n包括：查询、预占、确认、释放、增加等操作",
+        "operationId": "test_inventory_apis_api_v1_perf_inventory_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryPerfTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryPerfResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/stress": {
+      "post": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "阶梯式压力测试",
+        "description": "阶梯式压力测试\n\n从低并发到高并发逐步增加，观察系统性能变化",
+        "operationId": "test_stress_api_v1_perf_stress_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StressTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StressTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/custom": {
+      "post": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "自定义组合测试",
+        "description": "自定义多个 API 的组合测试\n\n可以同时测试多个不同的 API",
+        "operationId": "test_custom_api_v1_perf_custom_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryPerfResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/results/{filename}": {
+      "get": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "获取测试结果",
+        "description": "获取历史测试结果",
+        "operationId": "get_test_result_api_v1_perf_results__filename__get",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "删除测试结果",
+        "description": "删除指定的测试结果",
+        "operationId": "delete_test_result_api_v1_perf_results__filename__delete",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/results": {
+      "get": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "获取所有测试结果列表",
+        "description": "获取所有测试结果文件列表",
+        "operationId": "list_test_results_api_v1_perf_results_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/perf/metrics/summary": {
+      "get": {
+        "tags": [
+          "性能测试"
+        ],
+        "summary": "获取性能指标说明",
+        "description": "获取性能指标详细说明",
+        "operationId": "get_metrics_description_api_v1_perf_metrics_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "健康检查",
@@ -1606,6 +1956,24 @@
         "title": "BatchStockResponse",
         "description": "批量库存查询响应"
       },
+      "CustomTestRequest": {
+        "properties": {
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/SinglePerfTestRequest"
+            },
+            "type": "array",
+            "title": "Tests",
+            "description": "测试列表"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tests"
+        ],
+        "title": "CustomTestRequest",
+        "description": "自定义测试请求"
+      },
       "FreezeStockRequest": {
         "properties": {
           "warehouse_id": {
@@ -2057,6 +2425,77 @@
         "title": "InventoryLogDetail",
         "description": "库存变更日志详情"
       },
+      "InventoryPerfResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "default": ""
+          },
+          "summary": {
+            "type": "object",
+            "title": "Summary",
+            "default": {}
+          },
+          "tests": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Tests",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "InventoryPerfResponse",
+        "description": "库存性能测试响应"
+      },
+      "InventoryPerfTestRequest": {
+        "properties": {
+          "product_id": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Product Id",
+            "description": "商品 ID",
+            "default": 1
+          },
+          "warehouse_id": {
+            "type": "string",
+            "title": "Warehouse Id",
+            "description": "仓库 ID",
+            "default": "WH01"
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "description": "并发数",
+            "default": 100
+          },
+          "total_requests": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Total Requests",
+            "description": "总请求数",
+            "default": 1000
+          }
+        },
+        "type": "object",
+        "title": "InventoryPerfTestRequest",
+        "description": "库存性能测试请求"
+      },
       "OperationResponse": {
         "properties": {
           "success": {
@@ -2143,6 +2582,101 @@
         "title": "PaginatedLogsResponse",
         "description": "分页库存流水响应"
       },
+      "PerfTestResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "default": ""
+          },
+          "test_name": {
+            "type": "string",
+            "title": "Test Name",
+            "default": ""
+          },
+          "metrics": {
+            "type": "object",
+            "title": "Metrics",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "PerfTestResponse",
+        "description": "性能测试响应"
+      },
+      "SinglePerfTestRequest": {
+        "properties": {
+          "api_name": {
+            "type": "string",
+            "title": "Api Name",
+            "description": "API 名称"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "HTTP 方法",
+            "default": "GET"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "API 路径"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "请求体数据"
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "description": "并发数",
+            "default": 100
+          },
+          "total_requests": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Total Requests",
+            "description": "总请求数",
+            "default": 1000
+          },
+          "timeout": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 1.0,
+            "title": "Timeout",
+            "description": "超时时间 (秒)",
+            "default": 30
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_name",
+          "path"
+        ],
+        "title": "SinglePerfTestRequest",
+        "description": "单个性能测试请求"
+      },
       "StockResponse": {
         "properties": {
           "success": {
@@ -2224,6 +2758,98 @@
         ],
         "title": "StockResponse",
         "description": "单个商品库存响应"
+      },
+      "StressTestRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "API 路径"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "HTTP 方法",
+            "default": "GET"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "请求体数据"
+          },
+          "start_concurrency": {
+            "type": "integer",
+            "maximum": 5000.0,
+            "minimum": 1.0,
+            "title": "Start Concurrency",
+            "description": "起始并发数",
+            "default": 100
+          },
+          "max_concurrency": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 100.0,
+            "title": "Max Concurrency",
+            "description": "最大并发数",
+            "default": 1000
+          },
+          "step": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 10.0,
+            "title": "Step",
+            "description": "递增步长",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "StressTestRequest",
+        "description": "压力测试请求"
+      },
+      "StressTestResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "default": ""
+          },
+          "test_type": {
+            "type": "string",
+            "title": "Test Type",
+            "default": "stress"
+          },
+          "results": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Results",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "StressTestResponse",
+        "description": "压力测试响应"
       },
       "UnfreezeStockRequest": {
         "properties": {

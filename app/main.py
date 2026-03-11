@@ -30,6 +30,7 @@ from app.db.session import engine
 from app.core.redis import async_redis
 from app.routers import inventory_router
 from app.core.config import settings, find_available_port, is_port_available
+from app.init_data import check_and_init_data
 
 import uvicorn
 

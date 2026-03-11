@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import logging
+import time
+from functools import wraps
 
 from app.models.product_stocks import ProductStock
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
@@ -13,6 +15,57 @@ from app.models.inventory_logs import InventoryLog, ChangeType
 from app.services.inventory_cache import InventoryCacheService
 
 logger = logging.getLogger(__name__)
+
+# 性能监控阈值配置（毫秒）
+PERFORMANCE_THRESHOLD_WARNING = 50  # 警告阈值
+PERFORMANCE_THRESHOLD_CRITICAL = 100  # 严重阈值
+
+
+def performance_monitor(func):
+    """性能监控装饰器"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        try:
+            result = func(*args, **kwargs)
+            elapsed_ms = (time.time() - start_time) * 1000
+            
+            # 记录性能指标
+            if elapsed_ms > PERFORMANCE_THRESHOLD_CRITICAL:
+                logger.warning(
+                    f"[PERF-CRITICAL] {func.__name__} took {elapsed_ms:.2f}ms",
+                    extra={
+                        'performance_critical': True,
+                        'function': func.__name__,
+                        'duration_ms': elapsed_ms
+                    }
+                )
+            elif elapsed_ms > PERFORMANCE_THRESHOLD_WARNING:
+                logger.info(
+                    f"[PERF-WARNING] {func.__name__} took {elapsed_ms:.2f}ms",
+                    extra={
+                        'performance_warning': True,
+                        'function': func.__name__,
+                        'duration_ms': elapsed_ms
+                    }
+                )
+            else:
+                logger.debug(f"[PERF-OK] {func.__name__} took {elapsed_ms:.2f}ms")
+            
+            return result
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"[PERF-ERROR] {func.__name__} failed after {elapsed_ms:.2f}ms: {str(e)}",
+                extra={
+                    'performance_error': True,
+                    'function': func.__name__,
+                    'duration_ms': elapsed_ms,
+                    'error': str(e)
+                }
+            )
+            raise
+    return wrapper
 
 
 class InventoryReservationService:
@@ -34,6 +87,7 @@ class InventoryReservationService:
         if self.cache_service:
             self.cache_service.invalidate_cache(warehouse_id, product_id)
 
+    @performance_monitor
     def reserve_stock(
         self,
         warehouse_id: str,
@@ -44,22 +98,23 @@ class InventoryReservationService:
         """预占库存
         
         使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
+        优化：先快速检查（不加锁），再开启事务（加锁）
         """
-        stock = self.db.execute(
+        start_time = time.time()
+        
+        # 第一阶段：快速检查（不加锁，减少事务持锁时间）
+        stock_check = self.db.execute(
             select(ProductStock)
             .where(
                 ProductStock.warehouse_id == warehouse_id,
                 ProductStock.product_id == product_id
             )
-            .with_for_update()
         ).scalar_one_or_none()
-
-        if not stock:
+        
+        if not stock_check:
             raise HTTPException(status_code=404, detail="库存记录不存在")
-
-        if stock.available_stock < quantity:
-            raise HTTPException(status_code=400, detail="库存不足")
-
+        
+        # 检查重复预占（不加锁）
         existing_reservation = self.db.execute(
             select(InventoryReservation)
             .where(
@@ -68,10 +123,38 @@ class InventoryReservationService:
                 InventoryReservation.product_id == product_id
             )
         ).scalar_one_or_none()
-
+        
         if existing_reservation:
             raise HTTPException(status_code=400, detail="该订单已预占此商品")
-
+        
+        # 第二阶段：加锁并执行实际操作（最小化持锁时间）
+        stock = self.db.execute(
+            select(ProductStock)
+            .where(
+                ProductStock.warehouse_id == warehouse_id,
+                ProductStock.product_id == product_id
+            )
+            .with_for_update()
+        ).scalar_one()
+        
+        lock_acquired_time = time.time()
+        lock_wait_ms = (lock_acquired_time - start_time) * 1000
+        
+        if lock_wait_ms > 10:
+            logger.warning(
+                f"锁等待时间过长：order_id={order_id}, wait={lock_wait_ms:.2f}ms",
+                extra={
+                    'lock_wait': True,
+                    'order_id': order_id,
+                    'wait_ms': lock_wait_ms
+                }
+            )
+        
+        # 再次检查库存是否足够（在锁保护下）
+        if stock.available_stock < quantity:
+            raise HTTPException(status_code=400, detail="库存不足")
+        
+        # 执行扣减操作
         stock.available_stock -= quantity
         stock.reserved_stock += quantity
 
@@ -104,12 +187,24 @@ class InventoryReservationService:
         self.db.add(log)
 
         self.db.commit()
-        logger.info(f"预占库存成功: order_id={order_id}, warehouse={warehouse_id}, product={product_id}, quantity={quantity}")
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.info(
+            f"预占库存成功：order_id={order_id}, warehouse={warehouse_id}, product={product_id}, quantity={quantity}, duration={elapsed_ms:.2f}ms",
+            extra={
+                'operation': 'reserve_stock',
+                'order_id': order_id,
+                'warehouse_id': warehouse_id,
+                'product_id': product_id,
+                'quantity': quantity,
+                'duration_ms': elapsed_ms
+            }
+        )
 
         self._invalidate_cache(warehouse_id, product_id)
 
         return True
 
+    @performance_monitor
     def reserve_batch(
         self,
         order_id: str,
@@ -119,6 +214,7 @@ class InventoryReservationService:
         
         使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
         """
+        start_time = time.time()
         failed_items = []
         success_items = []
 
@@ -232,7 +328,7 @@ class InventoryReservationService:
                 )
 
             self.db.commit()
-            logger.info(f"批量预占成功: order_id={order_id}, count={len(success_items)}")
+            logger.info(f"批量预占成功：order_id={order_id}, count={len(success_items)}")
 
             for item in items:
                 self._invalidate_cache(item["warehouse_id"], item["product_id"])
@@ -253,11 +349,13 @@ class InventoryReservationService:
             logger.error(f"批量预占失败: {str(e)}")
             raise
 
+    @performance_monitor
     def confirm_stock(self, order_id: str) -> bool:
         """确认库存（实际扣减）
         
         使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
         """
+        start_time = time.time()
         reservations = self.db.execute(
             select(InventoryReservation)
             .where(
@@ -301,18 +399,20 @@ class InventoryReservationService:
             self.db.add(log)
 
         self.db.commit()
-        logger.info(f"确认库存成功: order_id={order_id}")
+        logger.info(f"确认库存成功：order_id={order_id}")
 
         for r in reservations:
             self._invalidate_cache(r.warehouse_id, r.product_id)
 
         return True
 
+    @performance_monitor
     def release_stock(self, order_id: str) -> bool:
         """释放库存（归还预占）
         
         使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
         """
+        start_time = time.time()
         reservations = self.db.execute(
             select(InventoryReservation)
             .where(
@@ -357,7 +457,7 @@ class InventoryReservationService:
             self.db.add(log)
 
         self.db.commit()
-        logger.info(f"释放库存成功: order_id={order_id}")
+        logger.info(f"释放库存成功：order_id={order_id}")
 
         for r in reservations:
             self._invalidate_cache(r.warehouse_id, r.product_id)

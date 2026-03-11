@@ -75,6 +75,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Redis connection failed: {e}")
         logger.warning("Application will run without Redis caching")
+    
+    # 初始化测试数据
+    check_and_init_data()
     yield
     
     # 应用关闭时的清理

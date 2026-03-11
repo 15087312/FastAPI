@@ -28,7 +28,7 @@ except ImportError:
 
 from app.db.session import engine
 from app.core.redis import async_redis
-from app.routers import inventory_router, perf_router
+from app.routers import inventory_router, perf_router, system_monitor
 from app.core.config import settings, find_available_port, is_port_available
 from app.init_data import check_and_init_data
 
@@ -168,6 +168,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(inventory_router.router, prefix="/api/v1")
 app.include_router(perf_router.router, prefix="/api/v1")
+app.include_router(system_monitor.router, prefix="/api/v1")
 
 # 全局异常处理
 @app.exception_handler(RequestValidationError)

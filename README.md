@@ -8,12 +8,15 @@
 
 ## 核心特性
 
-- ✅ **防超卖保障** - PostgreSQL 行级锁 + Redis 分布式锁双重保护
-- ✅ **高性能缓存** - Redis 缓存层加速读取，支持批量操作
+- ✅ **防超卖保障** - PostgreSQL 行级锁 + Redis Lua 脚本原子操作
+- ✅ **高性能缓存** - Redis 缓存层加速读取，支持批量操作，TTL 永不过期
 - ✅ **多层架构** - API / Celery / CLI 三种调用方式
 - ✅ **完整审计** - 详细的操作日志和状态追踪
-- ✅ **幂等保证** - 基于 Redis 的请求去重机制
+- ✅ **幂等保证** - 基于 Redis 的请求去重机制，防止重复提交
 - ✅ **优雅降级** - Redis 故障时自动降级到数据库模式
+- ✅ **接口防护** - 限流 + 参数校验 + 商品ID合法性检查
+- ✅ **布隆过滤器** - 快速判断商品ID是否存在，减少无效数据库查询
+- ✅ **Kafka 集成** - 库存变更消息通知下游系统
 
 ## 快速开始
 
@@ -451,6 +454,48 @@ docker compose restart db
 # 重启Redis
 docker compose restart redis
 ```
+## 🆕 新版本功能说明 (v2.0)
+
+### 1. Redis Lua 原子操作
+使用 Lua 脚本实现 Redis 原子操作，确保库存扣减的原子性：
+- 原子预占：检查库存 → 扣减库存 → 记录预占，三步原子执行
+- 原子释放：检查预占记录 → 增加库存 → 移除记录
+- 批量原子预占：支持多商品批量预占
+
+```lua
+-- 原子预占脚本示例
+local current_stock = redis.call('GET', stock_key)
+if current_stock < quantity then return {current_stock, 0} end
+if redis.call('SISMEMBER', reservation_key, order_id) == 1 then return {current_stock, 1} end
+local new_stock = redis.call('DECRBY', stock_key, quantity)
+redis.call('SADD', reservation_key, order_id)
+```
+
+### 2. 接口防护体系
+- **限流中间件**：基于 Redis 滑动窗口算法，每秒 50 请求（可配置）
+- **参数合法性校验**：product_id 范围检查 (1~10,000,000)
+- **BloomFilter 快速过滤**：快速判断商品ID是否存在，减少无效数据库查询
+
+### 3. 接口幂等性
+使用 Redis 记录操作结果，支持 order_id 级别的幂等性：
+- 预占 (reserve)、确认 (confirm)、释放 (release) 接口均支持幂等
+- TTL 24 小时，防止重复提交攻击
+
+### 4. Kafka 消息集成
+库存变更事件实时通知下游系统：
+- 支持事件类型：RESERVE, CONFIRM, RELEASE, INCREASE, DECREASE
+- 异步发送，连接失败不影响主业务
+
+### 5. 缓存优化
+- TTL 设为永不过期，避免缓存穿透
+- 空值缓存：查询结果为空的商品也缓存标记
+- 缓存预热：服务启动时批量加载库存数据到 Redis
+
+### 6. 架构流程图
+```
+请求 → 参数校验 → 限流检查 → BloomFilter → Redis原子操作 → 数据库更新 → Kafka通知 → 返回
+```
+
 ## 📊 性能基准
 
 | 操作类型 | QPS | 响应时间 | 缓存命中率 |

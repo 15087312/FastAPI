@@ -98,26 +98,28 @@ class TestInventoryRouter:
         assert "库存不足" in data.get("message", "") or "库存不足" in data.get("detail", "")
 
     def test_reserve_stock_duplicate(self, client, test_product):
-        """测试重复预占"""
+        """测试重复预占（幂等性）"""
         # 第一次预占
-        client.post("/api/v1/inventory/reserve", params={
+        response1 = client.post("/api/v1/inventory/reserve", params={
+            "warehouse_id": "WH01",
+            "product_id": test_product.id,
+            "quantity": 2,
+            "order_id": "ROUTER_TEST_ORDER_003"
+        })
+        assert response1.status_code == 200
+        
+        # 第二次预占同一订单（幂等性：返回之前成功的结果）
+        response2 = client.post("/api/v1/inventory/reserve", params={
             "warehouse_id": "WH01",
             "product_id": test_product.id,
             "quantity": 2,
             "order_id": "ROUTER_TEST_ORDER_003"
         })
         
-        # 第二次预占同一订单
-        response = client.post("/api/v1/inventory/reserve", params={
-            "warehouse_id": "WH01",
-            "product_id": test_product.id,
-            "quantity": 2,
-            "order_id": "ROUTER_TEST_ORDER_003"
-        })
-        
-        assert response.status_code == 400
-        data = response.json()
-        assert "该订单已预占此商品" in data.get("message", "") or "该订单已预占此商品" in data.get("detail", "")
+        # 幂等性：返回 200 而不是 400
+        assert response2.status_code == 200
+        data = response2.json()
+        assert data.get("success") == True
 
     def test_confirm_stock_success(self, client, test_product, real_db_session):
         """测试成功确认库存"""

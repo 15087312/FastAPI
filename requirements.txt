@@ -10,6 +10,10 @@ alembic>=1.12.0
 # 缓存和异步支持
 redis>=5.0.1
 aioredis>=2.0.1
+bloom-filter2>=2.0.0  # 布隆过滤器
+
+# Kafka 消息队列
+aiokafka>=0.10.0
 
 # Redis 连接池和工具
 # redis-py-cluster>=2.1.0  # Redis 集群支持（已移除，与 redis>=5.0.1 冲突）

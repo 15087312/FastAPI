@@ -85,3 +85,20 @@ def sample_reservation_data():
         "quantity": 2,
         "status": "RESERVED"
     }
+
+
+@pytest.fixture(autouse=True)
+def cleanup_kafka_producer():
+    """每个测试后清理 Kafka 生产者"""
+    yield
+    # 清理 Kafka 生产者，避免警告
+    import asyncio
+    try:
+        from app.core.kafka_producer import close_kafka_producer
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(close_kafka_producer())
+        else:
+            loop.run_until_complete(close_kafka_producer())
+    except Exception:
+        pass

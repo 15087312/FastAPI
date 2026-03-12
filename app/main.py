@@ -78,6 +78,83 @@ async def lifespan(app: FastAPI):
     
     # 初始化测试数据
     check_and_init_data()
+    
+    # 加载商品 ID 到布隆过滤器
+    try:
+        from app.services.bloom_filter import product_bloom_filter
+        from app.db.session import SessionLocal
+        from app.models.product import Product
+        
+        db = SessionLocal()
+        try:
+            # 从数据库查询所有商品 ID
+            product_ids = db.query(Product.id).all()
+            product_ids = [pid[0] for pid in product_ids]
+            
+            if product_ids:
+                product_bloom_filter.add_batch(product_ids)
+                logger.info(f"布隆过滤器已加载 {len(product_ids)} 个商品 ID")
+            else:
+                logger.warning("数据库中没有商品数据，布隆过滤器未加载")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"布隆过滤器加载失败: {e}")
+    
+    # 预热 Redis 缓存（可选，批量加载库存数据到缓存）
+    try:
+        from app.services.inventory_cache import InventoryCacheService
+        from app.core.redis import redis_client
+        from app.models.product_stocks import ProductStock
+        
+        if redis_client:
+            cache_service = InventoryCacheService(redis_client)
+            db = SessionLocal()
+            try:
+                # 批量查询所有仓库的商品库存
+                # 为了性能，按仓库分批
+                warehouses = db.query(ProductStock.warehouse_id).distinct().all()
+                warehouses = [w[0] for w in warehouses]
+                
+                total_cached = 0
+                for warehouse_id in warehouses:
+                    stocks = db.query(ProductStock).filter(
+                        ProductStock.warehouse_id == warehouse_id
+                    ).all()
+                    
+                    # 批量写入缓存
+                    stock_map = {s.product_id: s.available_stock for s in stocks}
+                    if stock_map:
+                        cache_service.batch_set_cached_stocks(warehouse_id, stock_map)
+                        total_cached += len(stock_map)
+                
+                if total_cached > 0:
+                    logger.info(f"Redis 缓存预热完成，共缓存 {total_cached} 条库存记录")
+                else:
+                    logger.warning("数据库中没有库存数据，缓存未预热")
+            finally:
+                db.close()
+        else:
+            logger.warning("Redis 未连接，跳过缓存预热")
+    except Exception as e:
+        logger.warning(f"Redis 缓存预热失败: {e}")
+    
+    # 启动 Kafka 消费者（后台任务）
+    try:
+        import asyncio
+        from app.services.kafka_consumer import start_kafka_consumer
+        
+        # 启动 Kafka 消费者任务
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(start_kafka_consumer())
+            logger.info("Kafka 消费者任务已启动（异步）")
+        else:
+            loop.run_until_complete(start_kafka_consumer())
+            logger.info("Kafka 消费者已启动")
+    except Exception as e:
+        logger.warning(f"Kafka 消费者启动失败: {e}")
+    
     yield
     
     # 应用关闭时的清理
@@ -164,6 +241,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加安全防护中间件（限流）
+try:
+    from app.core.security import SecurityMiddleware
+    from app.services.bloom_filter import product_bloom_filter
+    
+    if settings.RATE_LIMIT_ENABLED and redis_client:
+        app.add_middleware(
+            SecurityMiddleware,
+            redis_client=redis_client
+        )
+        logger.info("安全防护中间件已启用")
+    else:
+        logger.info("安全防护中间件未启用（Redis 不可用或已禁用）")
+except ImportError as e:
+    logger.warning(f"安全防护中间件导入失败: {e}")
+except Exception as e:
+    logger.warning(f"安全防护中间件初始化失败: {e}")
 
 # 注册路由
 app.include_router(inventory_router.router, prefix="/api/v1")

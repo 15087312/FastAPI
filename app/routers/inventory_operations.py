@@ -100,6 +100,29 @@ async def reserve_stock(
     redis = Depends(get_redis)
 ):
     """预占库存（支持多仓库）"""
+    # 参数合法性校验（在最前面，拒绝非法请求）
+    from app.core.security import ParameterValidator
+    
+    validator = ParameterValidator()
+    
+    # 1. 校验 product_id 范围：1 ~ 10,000,000
+    is_valid, error_msg = validator.validate_product_id_range(product_id)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # 2. 校验 product_id 是否存在（使用 BloomFilter 快速过滤）
+    from app.services.bloom_filter import product_bloom_filter
+    if product_bloom_filter.is_initialized() and not product_bloom_filter.contains(product_id):
+        raise HTTPException(status_code=404, detail="商品不存在")
+    
+    # 2. 校验 quantity 范围
+    if quantity > 10000:
+        raise HTTPException(status_code=400, detail="单次预占数量不能超过 10000")
+    
+    # 3. 校验 order_id 格式
+    if not order_id.replace("_", "").replace("-", "").isalnum():
+        raise HTTPException(status_code=400, detail="订单ID格式不正确")
+    
     try:
         service = InventoryService(db, redis)
         result = service.reserve_stock(warehouse_id, product_id, quantity, order_id)

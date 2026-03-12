@@ -16,6 +16,14 @@ class InventoryCacheService:
 
     def __init__(self, redis: Redis = None):
         self.redis = redis
+        # 预编译 Lua 脚本
+        self._reserve_script = None
+        self._release_script = None
+        self._batch_reserve_script = None
+        if self.redis:
+            self._reserve_script = self.redis.register_script(self.RESERVE_STOCK_LUA)
+            self._release_script = self.redis.register_script(self.RELEASE_STOCK_LUA)
+            self._batch_reserve_script = self.redis.register_script(self.BATCH_RESERVE_LUA)
 
     def _get_cache_key(self, warehouse_id: str, product_id: int) -> str:
         """生成库存缓存键"""
@@ -247,17 +255,6 @@ class InventoryCacheService:
     
     return results
     """
-
-    def __init__(self, redis: Redis = None):
-        self.redis = redis
-        # 预编译 Lua 脚本
-        self._reserve_script = None
-        self._release_script = None
-        self._batch_reserve_script = None
-        if self.redis:
-            self._reserve_script = self.redis.register_script(self.RESERVE_STOCK_LUA)
-            self._release_script = self.redis.register_script(self.RELEASE_STOCK_LUA)
-            self._batch_reserve_script = self.redis.register_script(self.BATCH_RESERVE_LUA)
 
     def atomic_reserve_stock(
         self,

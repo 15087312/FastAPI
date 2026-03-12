@@ -59,6 +59,8 @@ class RateLimiter:
     def is_allowed(self, request: Request) -> tuple[bool, dict]:
         """检查请求是否允许
         
+        使用滑动窗口算法：记录每个请求的时间戳，统计时间窗口内的请求数
+        
         Returns:
             (is_allowed, info)
             - is_allowed: 是否允许请求
@@ -70,20 +72,23 @@ class RateLimiter:
         
         key = self._get_rate_limit_key(request)
         current_time = int(time.time())
-        window_key = f"{key}:{current_time}"
         
         try:
             pipe = self.redis.pipeline()
             
-            # 使用滑动窗口：记录每个请求的时间戳
-            # 清理过期的窗口
+            # 使用滑动窗口：使用 Sorted Set 记录每个请求的时间戳
+            # 清理过期的窗口（1秒前的时间戳）
             pipe.zremrangebyscore(key, 0, current_time - 1)
             
-            # 添加当前请求
-            pipe.zadd(key, {str(current_time): current_time})
+            # 生成唯一请求 ID
+            import uuid
+            request_id = str(uuid.uuid4())
             
-            # 设置过期时间（1秒）
-            pipe.expire(key, 1)
+            # 添加当前请求到有序集合
+            pipe.zadd(key, {request_id: current_time})
+            
+            # 设置过期时间（2秒，保证窗口数据不会无限增长）
+            pipe.expire(key, 2)
             
             # 获取当前窗口内的请求数
             pipe.zcard(key)
@@ -92,25 +97,25 @@ class RateLimiter:
             request_count = results[-1]
             
             # 计算剩余请求数
-            remaining = max(0, self.requests_per_second - request_count)
+            remaining = max(0, self.burst_size - request_count)
             reset_time = current_time + 1
             
-            if request_count > self.requests_per_second:
+            if request_count > self.burst_size:
                 logger.warning(
                     f"限流触发: ip={self._get_client_ip(request)}, path={request.url.path}, "
-                    f"count={request_count}, limit={self.requests_per_second}"
+                    f"count={request_count}, limit={self.burst_size}"
                 )
                 return False, {
                     "remaining": 0,
                     "reset_time": reset_time,
-                    "limit": self.requests_per_second,
+                    "limit": self.burst_size,
                     "retry_after": 1
                 }
             
             return True, {
                 "remaining": remaining,
                 "reset_time": reset_time,
-                "limit": self.requests_per_second
+                "limit": self.burst_size
             }
             
         except Exception as e:

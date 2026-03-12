@@ -70,9 +70,22 @@ async def process_inventory_event(event: dict):
     before_stock = event.get("before_stock", 0)
     after_stock = event.get("after_stock", 0)
     
+    # 幂等性检查：防止消息重复消费
     db = SessionLocal()
     try:
-        # 根据事件类型处理
+        # 检查是否已处理过
+        idempotent_key = f"kafka:idempotent:{event_type}:{order_id}:{warehouse_id}:{product_id}"
+        from app.core.redis import redis_client
+        if redis_client:
+            is_processed = redis_client.get(idempotent_key)
+            if is_processed:
+                logger.info(f"消息已处理过，跳过: event_type={event_type}, order_id={order_id}")
+                return
+            
+            # 标记为已处理，设置 24 小时过期
+            redis_client.setex(idempotent_key, 86400, "1")
+        
+        # 根据事件类型处理（带行级锁）
         if event_type == "RESERVE":
             await _handle_reserve(db, warehouse_id, product_id, quantity, order_id, before_stock, after_stock)
         elif event_type == "CONFIRM":
@@ -98,12 +111,16 @@ async def process_inventory_event(event: dict):
 
 
 async def _handle_reserve(db, warehouse_id, product_id, quantity, order_id, before_stock, after_stock):
-    """处理预占事件"""
-    # 查询库存记录
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理预占事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁防止并发问题
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.available_stock -= quantity
@@ -128,11 +145,16 @@ async def _handle_reserve(db, warehouse_id, product_id, quantity, order_id, befo
 
 
 async def _handle_confirm(db, warehouse_id, product_id, quantity, order_id):
-    """处理确认事件"""
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理确认事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.reserved_stock -= quantity
@@ -161,11 +183,16 @@ async def _handle_confirm(db, warehouse_id, product_id, quantity, order_id):
 
 
 async def _handle_release(db, warehouse_id, product_id, quantity, order_id):
-    """处理释放事件"""
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理释放事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.available_stock += quantity
@@ -195,11 +222,16 @@ async def _handle_release(db, warehouse_id, product_id, quantity, order_id):
 
 
 async def _handle_increase(db, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理入库事件"""
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理入库事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.available_stock += quantity
@@ -219,11 +251,16 @@ async def _handle_increase(db, warehouse_id, product_id, quantity, before_stock,
 
 
 async def _handle_decrease(db, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理出库事件"""
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理出库事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.available_stock -= quantity
@@ -243,11 +280,16 @@ async def _handle_decrease(db, warehouse_id, product_id, quantity, before_stock,
 
 
 async def _handle_freeze(db, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理冻结事件"""
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理冻结事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.available_stock -= quantity
@@ -268,11 +310,16 @@ async def _handle_freeze(db, warehouse_id, product_id, quantity, before_stock, a
 
 
 async def _handle_unfreeze(db, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理解冻事件"""
-    stock = db.query(ProductStock).filter(
-        ProductStock.warehouse_id == warehouse_id,
-        ProductStock.product_id == product_id
-    ).first()
+    """处理解冻事件（带行级锁）"""
+    from sqlalchemy import select
+    
+    # 使用行级锁
+    stock = db.execute(
+        select(ProductStock).where(
+            ProductStock.warehouse_id == warehouse_id,
+            ProductStock.product_id == product_id
+        ).with_for_update()
+    ).scalar_one_or_none()
     
     if stock:
         stock.available_stock += quantity

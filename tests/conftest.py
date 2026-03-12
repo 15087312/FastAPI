@@ -1,15 +1,11 @@
-"""测试配置和 fixtures"""
+"""测试配置和 fixtures - 使用真实数据库和 Redis"""
 import pytest
-import os
-from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from redis import Redis
-
-
-# 加载 .env 文件（确保测试时使用正确的环境配置）
 from dotenv import load_dotenv
-# 使用绝对路径，避免工作目录问题
+import os
+# 加载 .env 文件（确保测试时使用正确的环境配置）
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 env_file = os.path.join(project_root, '.env')
 if os.path.exists(env_file):
@@ -21,10 +17,8 @@ else:
 from app.db.base import Base
 from app.core.config import settings
 
-
 # 真实数据库连接（使用 Docker 容器中的数据库）
 DATABASE_URL = "postgresql://postgres:123456@localhost:5432/mydb"
-
 
 @pytest.fixture(scope="function")
 def real_db_session():
@@ -38,7 +32,6 @@ def real_db_session():
     finally:
         db.rollback()
         db.close()
-
 
 @pytest.fixture(scope="function")
 def real_redis():
@@ -60,11 +53,8 @@ def real_redis():
     # 清理测试数据
     try:
         redis_client.flushdb()
-    except:
+    except Exception:
         pass
-
-
-
 
 @pytest.fixture
 def sample_product_data():
@@ -82,8 +72,7 @@ def sample_stock_data():
     return {
         "product_id": 1,
         "available_stock": 100,
-        "reserved_stock": 0,
-        "version": 0
+        "reserved_stock": 0
     }
 
 

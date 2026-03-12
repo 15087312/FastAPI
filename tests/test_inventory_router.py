@@ -1,6 +1,5 @@
 """库存路由单元测试 - 使用真实数据库和 FastAPI TestClient"""
 import pytest
-from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 

@@ -10,6 +10,10 @@ from app.models.product_stocks import ProductStock
 from app.models.inventory_logs import InventoryLog, ChangeType
 from app.services.inventory_cache import InventoryCacheService
 from app.services.inventory_query import InventoryQueryService
+from app.core.aspects import (
+    CacheInvalidationAspect,
+    LoggingAspect
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,26 +29,54 @@ class InventoryOperationService:
         self.db = db
         self.cache_service = cache_service
         self.query_service = InventoryQueryService(db, cache_service)
+        # 使用统一的缓存失效切面
+        self.cache_aspect = CacheInvalidationAspect(cache_service)
 
 
     def _invalidate_cache(self, warehouse_id: str, product_id: int):
-        """失效缓存"""
-        if self.cache_service:
-            self.cache_service.invalidate_cache(warehouse_id, product_id)
+        """失效缓存（使用统一切面）"""
+        self.cache_aspect.invalidate_single(warehouse_id, product_id)
 
     def increase_stock(
         self,
         warehouse_id: str,
-       product_id: int,
+        product_id: int,
         quantity: int,
         order_id: Optional[str] = None,
         operator: Optional[str] = None,
-       remark: Optional[str] = None,
-       source: str = "manual"
+        remark: Optional[str] = None,
+        source: str = "manual"
     ) -> Dict[str, Any]:
         """入库/补货 - 使用数据库行级锁"""
         try:
-            stock = self.query_service._get_or_create_stock(warehouse_id, product_id)
+            stock = self.db.execute(
+                select(ProductStock)
+                .where(
+                    ProductStock.warehouse_id == warehouse_id,
+                    ProductStock.product_id == product_id
+                )
+                .with_for_update()
+            ).scalar_one_or_none()
+
+            if not stock:
+                stock = ProductStock(
+                    warehouse_id=warehouse_id,
+                    product_id=product_id,
+                    available_stock=0,
+                    reserved_stock=0,
+                    frozen_stock=0,
+                    safety_stock=0
+                )
+                self.db.add(stock)
+                self.db.flush()
+                stock = self.db.execute(
+                    select(ProductStock)
+                    .where(
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.product_id == product_id
+                    )
+                    .with_for_update()
+                ).scalar_one()
 
             before_available = stock.available_stock
             stock.available_stock += quantity
@@ -68,8 +100,15 @@ class InventoryOperationService:
             self.db.add(log)
 
             self.db.commit()
-            logger.info(f"入库成功: warehouse={warehouse_id}, product={product_id}, quantity={quantity}")
-
+            LoggingAspect.log_operation_success(
+                "increase_stock",
+                extra_data={
+                    'warehouse_id': warehouse_id,
+                    'product_id': product_id,
+                    'quantity': quantity
+                }
+            )
+            
             self._invalidate_cache(warehouse_id, product_id)
 
             return {
@@ -135,8 +174,16 @@ class InventoryOperationService:
             self.db.add(log)
 
             self.db.commit()
-            logger.info(f"库存调整成功: warehouse={warehouse_id}, product={product_id}, type={adjust_type}, quantity={quantity}")
-
+            LoggingAspect.log_operation_success(
+                "adjust_stock",
+                extra_data={
+                    'warehouse_id': warehouse_id,
+                    'product_id': product_id,
+                    'adjust_type': adjust_type,
+                    'quantity': quantity
+                }
+            )
+            
             self._invalidate_cache(warehouse_id, product_id)
 
             return {
@@ -203,8 +250,15 @@ class InventoryOperationService:
             self.db.add(log)
 
             self.db.commit()
-            logger.info(f"冻结库存成功: warehouse={warehouse_id}, product={product_id}, quantity={quantity}")
-
+            LoggingAspect.log_operation_success(
+                "freeze_stock",
+                extra_data={
+                    'warehouse_id': warehouse_id,
+                    'product_id': product_id,
+                    'quantity': quantity
+                }
+            )
+            
             self._invalidate_cache(warehouse_id, product_id)
 
             return {
@@ -269,8 +323,15 @@ class InventoryOperationService:
             self.db.add(log)
 
             self.db.commit()
-            logger.info(f"解冻库存成功: warehouse={warehouse_id}, product={product_id}, quantity={quantity}")
-
+            LoggingAspect.log_operation_success(
+                "unfreeze_stock",
+                extra_data={
+                    'warehouse_id': warehouse_id,
+                    'product_id': product_id,
+                    'quantity': quantity
+                }
+            )
+            
             self._invalidate_cache(warehouse_id, product_id)
 
             return {

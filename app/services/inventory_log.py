@@ -10,6 +10,10 @@ from app.models.product_stocks import ProductStock
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
 from app.models.inventory_logs import InventoryLog, ChangeType
 from app.services.inventory_cache import InventoryCacheService
+from app.core.aspects import (
+    CacheInvalidationAspect,
+    LoggingAspect
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +31,12 @@ class InventoryLogService:
     ):
         self.db = db
         self.cache_service = cache_service
+        # 使用统一的缓存失效切面
+        self.cache_aspect = CacheInvalidationAspect(cache_service)
 
     def _invalidate_cache(self, warehouse_id: str, product_id: int):
-        """失效缓存"""
-        if self.cache_service:
-            self.cache_service.invalidate_cache(warehouse_id, product_id)
+        """失效缓存（使用统一切面）"""
+        self.cache_aspect.invalidate_single(warehouse_id, product_id)
 
     def get_inventory_logs(
         self,
@@ -102,7 +107,7 @@ class InventoryLogService:
                     break
 
                 logger.info(f"本次清理 {len(expired_reservations)} 条过期预占记录")
-
+                
                 for reservation in expired_reservations:
                     try:
                         product_stock = self.db.execute(
@@ -113,13 +118,13 @@ class InventoryLogService:
                             )
                             .with_for_update()
                         ).scalar_one_or_none()
-
+                
                         if product_stock:
                             product_stock.available_stock += reservation.quantity
                             product_stock.reserved_stock -= reservation.quantity
-
+                
                         reservation.status = ReservationStatus.RELEASED
-
+                
                         if product_stock:
                             log = InventoryLog(
                                 warehouse_id=reservation.warehouse_id,
@@ -137,28 +142,28 @@ class InventoryLogService:
                                 source="cleanup_job"
                             )
                             self.db.add(log)
-
+                
                         total_cleaned += 1
-
+                
                     except Exception as e:
-                        logger.error(f"清理单条预占记录失败: order_id={reservation.order_id}, error={str(e)}")
+                        logger.error(f"清理单条预占记录失败：order_id={reservation.order_id}, error={str(e)}")
                         continue
-
+                
                 self.db.commit()
-
-                for r in expired_reservations:
-                    self._invalidate_cache(r.warehouse_id, r.product_id)
+                
+                # 使用统一的缓存失效切面
+                self.cache_aspect.invalidate_by_order(expired_reservations)
 
                 logger.info(f"已完成批次清理，累计清理 {total_cleaned} 条记录")
 
                 if len(expired_reservations) < batch_size:
                     break
-
+        
             except Exception as e:
-                logger.error(f"批处理清理过程中发生错误: {str(e)}")
+                logger.error(f"批处理清理过程中发生错误：{str(e)}")
                 self.db.rollback()
                 break
-
-        logger.info(f"清理任务完成，总共清理 {total_cleaned} 条过期预占记录")
+        
+        LoggingAspect.log_operation_success("cleanup_expired_reservations", extra_data={'total_cleaned': total_cleaned})
 
         return total_cleaned

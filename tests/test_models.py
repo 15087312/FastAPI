@@ -77,7 +77,6 @@ class TestModels:
         assert saved_stock.product_id == product.id
         assert saved_stock.available_stock == 100
         assert saved_stock.reserved_stock == 10
-        assert saved_stock.version == 0
 
     def test_inventory_reservation_model(self, db_session):
         """测试库存预占模型"""

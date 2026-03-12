@@ -1,6 +1,5 @@
 """库存服务单元测试 - 使用真实数据库"""
 import pytest
-from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from datetime import datetime, timedelta
 

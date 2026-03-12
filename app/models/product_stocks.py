@@ -66,13 +66,6 @@ class ProductStock(Base):
         comment="安全库存（最低库存预警线）",
     )
 
-    version = Column(
-        Integer,
-        nullable=False,
-        server_default="0",
-        comment="乐观锁版本号",
-    )
-
     created_at = Column(
         TIMESTAMP(timezone=True),
         nullable=False,

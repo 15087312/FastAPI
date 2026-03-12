@@ -7,65 +7,18 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import logging
 import time
-from functools import wraps
 
 from app.models.product_stocks import ProductStock
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
 from app.models.inventory_logs import InventoryLog, ChangeType
 from app.services.inventory_cache import InventoryCacheService
+from app.core.aspects import (
+    performance_monitor,
+    CacheInvalidationAspect,
+    LoggingAspect
+)
 
 logger = logging.getLogger(__name__)
-
-# 性能监控阈值配置（毫秒）
-PERFORMANCE_THRESHOLD_WARNING = 50  # 警告阈值
-PERFORMANCE_THRESHOLD_CRITICAL = 100  # 严重阈值
-
-
-def performance_monitor(func):
-    """性能监控装饰器"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        try:
-            result = func(*args, **kwargs)
-            elapsed_ms = (time.time() - start_time) * 1000
-            
-            # 记录性能指标
-            if elapsed_ms > PERFORMANCE_THRESHOLD_CRITICAL:
-                logger.warning(
-                    f"[PERF-CRITICAL] {func.__name__} took {elapsed_ms:.2f}ms",
-                    extra={
-                        'performance_critical': True,
-                        'function': func.__name__,
-                        'duration_ms': elapsed_ms
-                    }
-                )
-            elif elapsed_ms > PERFORMANCE_THRESHOLD_WARNING:
-                logger.info(
-                    f"[PERF-WARNING] {func.__name__} took {elapsed_ms:.2f}ms",
-                    extra={
-                        'performance_warning': True,
-                        'function': func.__name__,
-                        'duration_ms': elapsed_ms
-                    }
-                )
-            else:
-                logger.debug(f"[PERF-OK] {func.__name__} took {elapsed_ms:.2f}ms")
-            
-            return result
-        except Exception as e:
-            elapsed_ms = (time.time() - start_time) * 1000
-            logger.error(
-                f"[PERF-ERROR] {func.__name__} failed after {elapsed_ms:.2f}ms: {str(e)}",
-                extra={
-                    'performance_error': True,
-                    'function': func.__name__,
-                    'duration_ms': elapsed_ms,
-                    'error': str(e)
-                }
-            )
-            raise
-    return wrapper
 
 
 class InventoryReservationService:
@@ -81,11 +34,12 @@ class InventoryReservationService:
     ):
         self.db = db
         self.cache_service = cache_service
+        # 使用统一的缓存失效切面
+        self.cache_aspect = CacheInvalidationAspect(cache_service)
 
     def _invalidate_cache(self, warehouse_id: str, product_id: int):
-        """失效缓存"""
-        if self.cache_service:
-            self.cache_service.invalidate_cache(warehouse_id, product_id)
+        """失效缓存（使用统一切面）"""
+        self.cache_aspect.invalidate_single(warehouse_id, product_id)
 
     @performance_monitor
     def reserve_stock(
@@ -188,15 +142,14 @@ class InventoryReservationService:
 
         self.db.commit()
         elapsed_ms = (time.time() - start_time) * 1000
-        logger.info(
-            f"预占库存成功：order_id={order_id}, warehouse={warehouse_id}, product={product_id}, quantity={quantity}, duration={elapsed_ms:.2f}ms",
-            extra={
-                'operation': 'reserve_stock',
+        LoggingAspect.log_operation_success(
+            "reserve_stock",
+            duration_ms=elapsed_ms,
+            extra_data={
                 'order_id': order_id,
                 'warehouse_id': warehouse_id,
                 'product_id': product_id,
-                'quantity': quantity,
-                'duration_ms': elapsed_ms
+                'quantity': quantity
             }
         )
 
@@ -330,8 +283,8 @@ class InventoryReservationService:
             self.db.commit()
             logger.info(f"批量预占成功：order_id={order_id}, count={len(success_items)}")
 
-            for item in items:
-                self._invalidate_cache(item["warehouse_id"], item["product_id"])
+            # 使用统一的缓存失效切面
+            self.cache_aspect.invalidate_batch(items)
 
             return {
                 "order_id": order_id,
@@ -399,10 +352,10 @@ class InventoryReservationService:
             self.db.add(log)
 
         self.db.commit()
-        logger.info(f"确认库存成功：order_id={order_id}")
+        LoggingAspect.log_operation_success("confirm_stock", extra_data={'order_id': order_id})
 
-        for r in reservations:
-            self._invalidate_cache(r.warehouse_id, r.product_id)
+        # 使用统一的缓存失效切面
+        self.cache_aspect.invalidate_by_order(reservations)
 
         return True
 
@@ -457,9 +410,9 @@ class InventoryReservationService:
             self.db.add(log)
 
         self.db.commit()
-        logger.info(f"释放库存成功：order_id={order_id}")
+        LoggingAspect.log_operation_success("release_stock", extra_data={'order_id': order_id})
 
-        for r in reservations:
-            self._invalidate_cache(r.warehouse_id, r.product_id)
+        # 使用统一的缓存失效切面
+        self.cache_aspect.invalidate_by_order(reservations)
 
         return True

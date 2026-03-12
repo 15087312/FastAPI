@@ -2,6 +2,7 @@
 
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 # 创建 Celery 应用实例
 app = Celery('inventory_worker')
@@ -32,6 +33,34 @@ app.conf.task_routes = {
 # Worker 配置
 app.conf.worker_prefetch_multiplier = 1
 app.conf.task_acks_late = True
+
+# 定时任务配置（Celery Beat）
+app.conf.beat_schedule = {
+    # 每小时同步一次 Redis 缓存
+    'sync-redis-every-hour': {
+        'task': 'tasks.inventory.sync_redis_to_db',
+        'schedule': 3600.0,  # 1 小时
+        'options': {
+            'queue': 'inventory',
+        }
+    },
+    # 每小时校验一次 Redis 与数据库一致性
+    'verify-consistency-every-hour': {
+        'task': 'tasks.inventory.verify_redis_db_consistency',
+        'schedule': 3600.0,  # 1 小时
+        'options': {
+            'queue': 'inventory',
+        }
+    },
+    # 每天凌晨 3 点清理过期预占
+    'cleanup-expired-reservations-daily': {
+        'task': 'tasks.inventory.cleanup_expired_reservations',
+        'schedule': crontab(hour=3, minute=0),  # 每天凌晨 3 点
+        'options': {
+            'queue': 'inventory',
+        }
+    },
+}
 
 # 导出应用实例
 __all__ = ['app']

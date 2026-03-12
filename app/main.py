@@ -144,14 +144,19 @@ async def lifespan(app: FastAPI):
         import asyncio
         from app.services.kafka_consumer import start_kafka_consumer
         
-        # 启动 Kafka 消费者任务
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.create_task(start_kafka_consumer())
+        # 使用推荐的异步方式启动 Kafka 消费者
+        try:
+            # 尝试获取当前运行中的 loop
+            loop = asyncio.get_running_loop()
+            loop.create_task(start_kafka_consumer())
             logger.info("Kafka 消费者任务已启动（异步）")
-        else:
-            loop.run_until_complete(start_kafka_consumer())
-            logger.info("Kafka 消费者已启动")
+        except RuntimeError:
+            # 没有运行中的 loop，在新线程中运行
+            import threading
+            def run_kafka_consumer():
+                asyncio.run(start_kafka_consumer())
+            threading.Thread(target=run_kafka_consumer, daemon=True).start()
+            logger.info("Kafka 消费者任务已启动（新线程）")
     except Exception as e:
         logger.warning(f"Kafka 消费者启动失败: {e}")
     
@@ -234,12 +239,23 @@ app = FastAPI(
 )
 
 # 添加 CORS 中间件
+# 生产环境配置：允许从环境变量 ALLOWED_ORIGINS 读取域名列表，逗号分隔
+# 示例：ALLOWED_ORIGINS="https://example.com,https://app.example.com"
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()] if allowed_origins_str else []
+
+# 如果未配置且非调试模式，使用安全的默认值
+if not allowed_origins and not settings.DEBUG:
+    allowed_origins = ["https://example.com"]  # 生产环境默认域名
+else:
+    allowed_origins = allowed_origins or ["*"]  # 调试模式允许所有
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境中应该指定具体域名
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
 # 添加安全防护中间件（限流）

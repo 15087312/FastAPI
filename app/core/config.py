@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # 应用配置
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
-    DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     
     # 数据库配置（从环境变量读取）
     # ⚠️ Docker 环境：POSTGRES_HOST 默认为 "db"（Docker 服务名）

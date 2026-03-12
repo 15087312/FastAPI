@@ -7,10 +7,22 @@ import multiprocessing
 import os
 
 # 计算最优连接池大小
-# 公式：workers × 2 + 1（参考 uvicorn workers 计算）
-# 如果设置了环境变量，优先使用环境变量
-default_pool_size = int(os.getenv("DB_POOL_SIZE", "20"))
-default_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "40"))
+# 假设 PostgreSQL 默认 max_connections = 100
+# 根据预估的 worker 数量计算每个 worker 的连接池大小
+# 公式：recommended_pool_size = max(2, max_connections // max_workers)
+# 预留一些连接给管理员和运维工具
+cpu_count = multiprocessing.cpu_count()
+estimated_workers = min(cpu_count * 2 + 1, 8)  # 最多 8 个 worker
+postgresql_max_connections = 100  # PostgreSQL 默认 max_connections
+reserved_connections = 10  # 预留连接给运维工具
+available_for_app = postgresql_max_connections - reserved_connections
+recommended_pool_size = max(2, available_for_app // estimated_workers)
+
+# 从环境变量读取，如果未设置则使用计算出的推荐值
+default_pool_size = int(os.getenv("DB_POOL_SIZE", str(recommended_pool_size)))
+default_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", str(recommended_pool_size * 2)))
+
+print(f"数据库连接池配置: pool_size={default_pool_size}, max_overflow={default_max_overflow}, estimated_workers={estimated_workers}")
 
 engine = create_engine(
     settings.database_url,

@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-green)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![License](https://img.shields.io/badge/License-Educational-red)](LICENSE)
 
 ## 核心特性
 
@@ -530,7 +530,11 @@ mypy app/
 
 ## 📄 许可证
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+## 📄 许可证
+
+本软件仅供学习使用 - 详见 [LICENSE](LICENSE) 文件
+
+**禁止商业用途**
 
 ---
 

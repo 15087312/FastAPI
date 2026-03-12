@@ -142,66 +142,92 @@ class InventoryReservationService:
                 redis_new_stock = None
         
         # 同步更新数据库（保证一致性）
-        stock = self.db.execute(
-            select(ProductStock).where(
-                ProductStock.warehouse_id == warehouse_id,
-                ProductStock.product_id == product_id
-            )
-            .with_for_update()
-        ).scalar_one()
+        # 使用 Saga 模式：Redis 成功 -> 数据库失败时回滚 Redis
+        redis_success = use_redis and redis_new_stock is not None
         
-        # 再次检查库存（防止并发）
-        if stock.available_stock < quantity:
-            if use_redis:
-                # 回滚 Redis（使用 Lua 脚本）
-                self.cache_service.atomic_release_stock(
-                    warehouse_id=warehouse_id,
-                    product_id=product_id,
-                    quantity=quantity,
-                    order_id=order_id
+        try:
+            stock = self.db.execute(
+                select(ProductStock).where(
+                    ProductStock.warehouse_id == warehouse_id,
+                    ProductStock.product_id == product_id
                 )
-            raise HTTPException(status_code=400, detail="库存不足")
-        
-        # 执行扣减
-        stock.available_stock -= quantity
-        stock.reserved_stock += quantity
-        after_stock = stock.available_stock
-        
-        # 创建预占记录
-        reservation = InventoryReservation(
-            warehouse_id=warehouse_id,
-            order_id=order_id,
-            product_id=product_id,
-            quantity=quantity,
-            status=ReservationStatus.RESERVED,
-            expired_at=datetime.utcnow() + timedelta(minutes=15)
-        )
-        self.db.add(reservation)
-        
-        # 记录日志
-        log = InventoryLog(
-            warehouse_id=warehouse_id,
-            product_id=product_id,
-            order_id=order_id,
-            change_type=ChangeType.RESERVE,
-            quantity=-quantity,
-            before_available=before_stock,
-            after_available=after_stock,
-            before_reserved=stock.reserved_stock - quantity,
-            after_reserved=stock.reserved_stock,
-            before_frozen=stock.frozen_stock,
-            after_frozen=stock.frozen_stock,
-            operator="order_service"
-        )
-        self.db.add(log)
-        
-        self.db.commit()
+                .with_for_update()
+            ).scalar_one()
+            
+            # 再次检查库存（防止并发）
+            if stock.available_stock < quantity:
+                # 回滚 Redis（使用 Lua 脚本）
+                if redis_success:
+                    self.cache_service.atomic_release_stock(
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=quantity,
+                        order_id=order_id
+                    )
+                raise HTTPException(status_code=400, detail="库存不足")
+            
+            # 执行扣减
+            stock.available_stock -= quantity
+            stock.reserved_stock += quantity
+            after_stock = stock.available_stock
+            
+            # 创建预占记录
+            reservation = InventoryReservation(
+                warehouse_id=warehouse_id,
+                order_id=order_id,
+                product_id=product_id,
+                quantity=quantity,
+                status=ReservationStatus.RESERVED,
+                expired_at=datetime.utcnow() + timedelta(minutes=15)
+            )
+            self.db.add(reservation)
+            
+            # 记录日志
+            log = InventoryLog(
+                warehouse_id=warehouse_id,
+                product_id=product_id,
+                order_id=order_id,
+                change_type=ChangeType.RESERVE,
+                quantity=-quantity,
+                before_available=before_stock,
+                after_available=after_stock,
+                before_reserved=stock.reserved_stock - quantity,
+                after_reserved=stock.reserved_stock,
+                before_frozen=stock.frozen_stock,
+                after_frozen=stock.frozen_stock,
+                operator="order_service"
+            )
+            self.db.add(log)
+            
+            self.db.commit()
+            
+        except HTTPException:
+            # HTTP 异常（库存不足等），已在上方处理 Redis 回滚
+            raise
+        except Exception as e:
+            # 数据库操作失败，必须回滚 Redis
+            logger.error(f"数据库操作失败，回滚 Redis: {e}")
+            if redis_success:
+                try:
+                    self.cache_service.atomic_release_stock(
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=quantity,
+                        order_id=order_id
+                    )
+                    logger.info(f"Redis 回滚成功: order_id={order_id}")
+                except Exception as rollback_err:
+                    logger.error(f"Redis 回滚失败: {rollback_err}")
+            self.db.rollback()
+            raise HTTPException(status_code=500, detail=f"库存预占失败: {str(e)}")
         
         # 发送 Kafka 消息（异步通知下游，可选）
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(send_inventory_event(
+            import threading
+            try:
+                # 尝试获取当前运行中的 loop
+                loop = asyncio.get_running_loop()
+                loop.create_task(send_inventory_event(
                     event_type=InventoryEventType.RESERVE,
                     warehouse_id=warehouse_id,
                     product_id=product_id,
@@ -210,16 +236,19 @@ class InventoryReservationService:
                     before_stock=before_stock,
                     after_stock=after_stock
                 ))
-            else:
-                loop.run_until_complete(send_inventory_event(
-                    event_type=InventoryEventType.RESERVE,
-                    warehouse_id=warehouse_id,
-                    product_id=product_id,
-                    quantity=quantity,
-                    order_id=order_id,
-                    before_stock=before_stock,
-                    after_stock=after_stock
-                ))
+            except RuntimeError:
+                # 没有运行中的 loop，在新线程中运行
+                def run_async_event():
+                    asyncio.run(send_inventory_event(
+                        event_type=InventoryEventType.RESERVE,
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=quantity,
+                        order_id=order_id,
+                        before_stock=before_stock,
+                        after_stock=after_stock
+                    ))
+                threading.Thread(target=run_async_event, daemon=True).start()
         except Exception as e:
             logger.warning(f"Kafka 消息发送失败（不影响主流程）: {e}")
         
@@ -260,19 +289,101 @@ class InventoryReservationService:
     ) -> Dict[str, Any]:
         """批量预占库存（事务保证：全部成功或全部回滚）
         
-        使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
+        使用两阶段预检查：
+        1. 第一阶段：预检查所有商品库存是否充足、是否存在重复预占
+        2. 第二阶段：执行所有预占操作并一次性提交
+        
+        这样保证真正的原子性：要么全部成功，要么全部失败。
         """
         start_time = time.time()
-        failed_items = []
-        success_items = []
 
         try:
+            # ========== 第一阶段：预检查所有商品 ==========
+            validation_results = []
             for item in items:
                 warehouse_id = item["warehouse_id"]
                 product_id = item["product_id"]
                 quantity = item["quantity"]
 
-                try:
+                # 检查库存记录是否存在
+                stock = self.db.execute(
+                    select(ProductStock)
+                    .where(
+                        ProductStock.warehouse_id == warehouse_id,
+                        ProductStock.product_id == product_id
+                    )
+                ).scalar_one_or_none()
+
+                if not stock:
+                    validation_results.append({
+                        "warehouse_id": warehouse_id,
+                        "product_id": product_id,
+                        "valid": False,
+                        "message": "库存记录不存在"
+                    })
+                    continue
+
+                # 检查库存是否足够
+                if stock.available_stock < quantity:
+                    validation_results.append({
+                        "warehouse_id": warehouse_id,
+                        "product_id": product_id,
+                        "valid": False,
+                        "message": f"库存不足（当前可用: {stock.available_stock}，需要: {quantity}）"
+                    })
+                    continue
+
+                # 检查是否已存在预占
+                existing_reservation = self.db.execute(
+                    select(InventoryReservation)
+                    .where(
+                        InventoryReservation.order_id == order_id,
+                        InventoryReservation.warehouse_id == warehouse_id,
+                        InventoryReservation.product_id == product_id,
+                        InventoryReservation.status == ReservationStatus.RESERVED
+                    )
+                ).scalar_one_or_none()
+
+                if existing_reservation:
+                    validation_results.append({
+                        "warehouse_id": warehouse_id,
+                        "product_id": product_id,
+                        "valid": False,
+                        "message": "该订单已预占此商品"
+                    })
+                    continue
+
+                # 预检查通过
+                validation_results.append({
+                    "warehouse_id": warehouse_id,
+                    "product_id": product_id,
+                    "valid": True,
+                    "message": "预检查通过"
+                })
+
+            # 检查是否有预检查失败的项目
+            failed_items = [r for r in validation_results if not r["valid"]]
+            if failed_items:
+                # 预检查阶段失败，不执行任何数据库操作，直接返回
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "部分商品预检查失败",
+                        "failed_items": failed_items,
+                        "total_items": len(items),
+                        "failed_count": len(failed_items)
+                    }
+                )
+
+            # ========== 第二阶段：执行所有预占操作 ==========
+            success_items = []
+            try:
+                for item, validation in zip(items, validation_results):
+                    warehouse_id = item["warehouse_id"]
+                    product_id = item["product_id"]
+                    quantity = item["quantity"]
+
+                    # 获取行级锁并执行扣减
                     stock = self.db.execute(
                         select(ProductStock)
                         .where(
@@ -280,47 +391,19 @@ class InventoryReservationService:
                             ProductStock.product_id == product_id
                         )
                         .with_for_update()
-                    ).scalar_one_or_none()
+                    ).scalar_one()
 
-                    if not stock:
-                        failed_items.append({
-                            "warehouse_id": warehouse_id,
-                            "product_id": product_id,
-                            "success": False,
-                            "message": "库存记录不存在"
-                        })
-                        continue
+                    before_available = stock.available_stock
 
+                    # 再次检查库存（防止并发）
                     if stock.available_stock < quantity:
-                        failed_items.append({
-                            "warehouse_id": warehouse_id,
-                            "product_id": product_id,
-                            "success": False,
-                            "message": "库存不足"
-                        })
-                        continue
+                        raise Exception(f"商品 {product_id} 库存不足")
 
-                    existing_reservation = self.db.execute(
-                        select(InventoryReservation)
-                        .where(
-                            InventoryReservation.order_id == order_id,
-                            InventoryReservation.warehouse_id == warehouse_id,
-                            InventoryReservation.product_id == product_id
-                        )
-                    ).scalar_one_or_none()
-
-                    if existing_reservation:
-                        failed_items.append({
-                            "warehouse_id": warehouse_id,
-                            "product_id": product_id,
-                            "success": False,
-                            "message": "该订单已预占此商品"
-                        })
-                        continue
-
+                    # 执行扣减
                     stock.available_stock -= quantity
                     stock.reserved_stock += quantity
 
+                    # 创建预占记录
                     reservation = InventoryReservation(
                         warehouse_id=warehouse_id,
                         order_id=order_id,
@@ -331,13 +414,14 @@ class InventoryReservationService:
                     )
                     self.db.add(reservation)
 
+                    # 记录日志
                     log = InventoryLog(
                         warehouse_id=warehouse_id,
                         product_id=product_id,
                         order_id=order_id,
                         change_type=ChangeType.BATCH_RESERVE,
                         quantity=-quantity,
-                        before_available=stock.available_stock + quantity,
+                        before_available=before_available,
                         after_available=stock.available_stock,
                         before_reserved=stock.reserved_stock - quantity,
                         after_reserved=stock.reserved_stock,
@@ -355,39 +439,34 @@ class InventoryReservationService:
                         "message": "预占成功"
                     })
 
-                except Exception as e:
-                    failed_items.append({
-                        "warehouse_id": warehouse_id,
-                        "product_id": product_id,
-                        "success": False,
-                        "message": str(e)
-                    })
+                # 一次性提交所有更改
+                self.db.commit()
+                logger.info(f"批量预占成功：order_id={order_id}, count={len(success_items)}")
 
-            if failed_items and success_items:
+                # 使用统一的缓存失效切面
+                self.cache_aspect.invalidate_batch(items)
+
+                return {
+                    "order_id": order_id,
+                    "total_items": len(items),
+                    "success_items": len(success_items),
+                    "failed_items": 0,
+                    "details": success_items
+                }
+
+            except Exception as e:
+                # 执行阶段出错，回滚所有更改
+                self.db.rollback()
+                logger.error(f"批量预占执行失败，已回滚: {str(e)}")
                 raise HTTPException(
-                    status_code=400,
-                    detail="部分商品预占失败，已回滚",
+                    status_code=500,
+                    detail={
+                        "message": f"批量预占执行失败，已回滚: {str(e)}",
+                        "total_items": len(items),
+                        "success_items": 0,
+                        "failed_items": len(items)
+                    }
                 )
-
-            if failed_items:
-                raise HTTPException(
-                    status_code=400,
-                    detail="所有商品预占失败",
-                )
-
-            self.db.commit()
-            logger.info(f"批量预占成功：order_id={order_id}, count={len(success_items)}")
-
-            # 使用统一的缓存失效切面
-            self.cache_aspect.invalidate_batch(items)
-
-            return {
-                "order_id": order_id,
-                "total_items": len(items),
-                "success_items": len(success_items),
-                "failed_items": len(failed_items),
-                "details": success_items
-            }
 
         except HTTPException:
             self.db.rollback()

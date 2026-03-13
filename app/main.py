@@ -81,28 +81,28 @@ async def lifespan(app: FastAPI):
     
     # 初始化测试数据
     check_and_init_data()
-    
-    # 加载商品 ID 到布隆过滤器
+        
+    # 加载商品 ID 到布隆过滤器（在所有 worker 中都要执行）
     try:
         from app.services.bloom_filter import product_bloom_filter
         from app.db.session import SessionLocal
         from app.models.product import Product
-        
+            
         db = SessionLocal()
         try:
-            # 从数据库查询所有商品 ID
+            # 从数据库查询所有商品 ID（不依赖 init_data，直接查询）
             product_ids = db.query(Product.id).all()
             product_ids = [pid[0] for pid in product_ids]
-            
+                
             if product_ids:
-                product_bloom_filter.add_batch(product_ids)
-                logger.info(f"布隆过滤器已加载 {len(product_ids)} 个商品 ID")
+                count = product_bloom_filter.add_batch(product_ids)
+                logger.info(f"布隆过滤器已加载 {count} 个商品 ID，当前总计：{product_bloom_filter.get_size()}")
             else:
                 logger.warning("数据库中没有商品数据，布隆过滤器未加载")
         finally:
             db.close()
     except Exception as e:
-        logger.warning(f"布隆过滤器加载失败: {e}")
+        logger.warning(f"布隆过滤器加载失败：{e}")
     
     # 预热 Redis 缓存（可选，批量加载库存数据到缓存）
     try:

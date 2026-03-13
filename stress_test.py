@@ -70,8 +70,8 @@ class InventoryStressTester:
         self.base_url = base_url
         self.session: Optional[aiohttp.ClientSession] = None
         self.test_data = {
-            "warehouse_id": "WH01",
-            "product_id": 1,
+            "warehouse_id": "WH001",  # 使用数据库中实际存在的仓库 ID
+            "product_id": 980,  # 使用数据库中实际存在的商品 ID
             "quantity": 1,
             "order_id_prefix": "STRESS_TEST"
         }
@@ -110,16 +110,20 @@ class InventoryStressTester:
                 f"{self.base_url}/api/v1/inventory/stock/{product_id}"
             ) as response:
                 elapsed = (time.time() - start_time) * 1000
+                if response.status != 200:
+                    text = await response.text()
+                    print(f"\n查询库存失败：{response.status}, {text[:200]}")
                 return response.status == 200, elapsed
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
+            print(f"\n查询库存异常：{e}")
             return False, elapsed
     
     async def reserve_stock(self, order_id: str) -> Tuple[bool, float]:
         """预占库存"""
         start_time = time.time()
         try:
-            # 使用查询参数而不是 JSON body
+            # 使用查询参数
             params = {
                 "warehouse_id": self.test_data["warehouse_id"],
                 "product_id": self.test_data["product_id"],
@@ -131,9 +135,14 @@ class InventoryStressTester:
                 params=params
             ) as response:
                 elapsed = (time.time() - start_time) * 1000
+                if response.status not in [200, 201]:
+                    print(f"\n预占请求返回状态码：{response.status}")
+                    text = await response.text()
+                    print(f"响应内容：{text[:300]}")
                 return response.status in [200, 201], elapsed
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
+            print(f"\n预占请求异常：{e}")
             return False, elapsed
     
     async def confirm_stock(self, order_id: str) -> Tuple[bool, float]:
@@ -163,7 +172,7 @@ class InventoryStressTester:
             return False, elapsed
     
     async def mixed_scenario(self, order_id: str) -> Tuple[bool, float]:
-        """混合场景：查询 -> 预占 -> 确认 -> 释放"""
+        """混合场景：查询 -> 预占 -> 释放（模拟取消订单）"""
         start_time = time.time()
         try:
             # 1. 查询库存
@@ -175,25 +184,20 @@ class InventoryStressTester:
             # 2. 预占库存
             success, _ = await self.reserve_stock(order_id)
             if not success:
-                # print(f"预占失败：{order_id}")  # 调试信息
+                print(f"\n❗ 预占失败：{order_id}")  # 调试信息
                 elapsed = (time.time() - start_time) * 1000
                 return False, elapsed
             
-            # 3. 确认库存
-            success, _ = await self.confirm_stock(order_id)
-            if not success:
-                # print(f"确认失败：{order_id}")  # 调试信息
-                elapsed = (time.time() - start_time) * 1000
-                return False, elapsed
-            
-            # 4. 释放库存（模拟退货）
+            # 3. 直接释放库存（模拟取消订单，不执行确认）
             success, _ = await self.release_stock(order_id)
             elapsed = (time.time() - start_time) * 1000
+            if not success:
+                print(f"\n❗ 释放失败：{order_id}")  # 调试信息
             return success, elapsed
             
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
-            # print(f"混合场景异常：{e}")  # 调试信息
+            print(f"\n❗ 混合场景异常：{e}")  # 调试信息
             return False, elapsed
     
     async def run_concurrent_test(
@@ -321,6 +325,18 @@ class InventoryStressTester:
             return
         
         print(f"   ✓ 服务健康，可以开始测试")
+        
+        # 先测试一下商品是否存在
+        print("\n🔍 验证测试数据...")
+        success, _ = await self.query_stock(self.test_data["product_id"])
+        if not success:
+            print(f"   ❌ 商品 ID {self.test_data['product_id']} 不存在！")
+            print(f"   💡 请确保数据库中已初始化测试数据")
+            print(f"   💡 或者修改 test_data 中的 product_id 为存在的商品")
+            await self.close_session()
+            return
+        
+        print(f"   ✓ 商品 ID {self.test_data['product_id']} 存在，可以开始测试")
         
         # 测试场景配置
         test_configs = [

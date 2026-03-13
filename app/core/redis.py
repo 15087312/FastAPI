@@ -25,15 +25,14 @@ except ImportError:
     from redis.asyncio.client import Redis as AsyncRedis
 
 
-# 统一的 Redis 配置
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-# 确保 URL 包含 redis:// 前缀（强制添加，防止环境变量缺失）
-if REDIS_HOST and not REDIS_HOST.startswith(('redis://', 'rediss://', 'unix://')):
-    REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+# 统一的 Redis 配置（从 settings 读取）
+from app.core.config import settings
+
+# 构建 Redis URL（支持密码）
+if settings.REDIS_PASSWORD:
+    REDIS_URL = f"redis://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
 else:
-    REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}" if REDIS_HOST else "redis://localhost:6379/0"
+    REDIS_URL = f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
 
 # 基础 Redis 客户端
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)

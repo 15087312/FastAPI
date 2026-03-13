@@ -3,7 +3,6 @@
 import os
 import json
 import asyncio
-import logging
 import time
 from typing import Optional
 from aiokafka import AIOKafkaConsumer
@@ -14,7 +13,9 @@ from app.models.product_stocks import ProductStock
 from app.models.inventory_logs import InventoryLog, ChangeType
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
 
-logger = logging.getLogger(__name__)
+# 使用结构化日志
+from app.core.structured_logging import get_structured_logger
+logger = get_structured_logger(__name__)
 
 # Kafka 配置
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

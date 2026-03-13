@@ -5,7 +5,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
-import logging
 import time
 
 from app.models.product_stocks import ProductStock
@@ -18,7 +17,9 @@ from app.core.aspects import (
     LoggingAspect
 )
 
-logger = logging.getLogger(__name__)
+# 使用结构化日志
+from app.core.structured_logging import get_structured_logger
+logger = get_structured_logger(__name__)
 
 
 class InventoryReservationService:
@@ -49,14 +50,15 @@ class InventoryReservationService:
         quantity: int,
         order_id: str
     ) -> bool:
-        """预占库存 - Redis Lua 原子扣减 + 同步数据库更新 + Kafka 消息 + 幂等性保证
+        """预占库存 - 以数据库为唯一数据源，Redis 仅作为缓存
         
         流程：
         1. 幂等性检查（已处理直接返回）
-        2. Redis Lua 原子扣减（保证原子性）
-        3. 同步更新数据库（一致性保证）
-        4. 记录幂等性结果
-        5. 发送 Kafka 消息（通知下游，可选）
+        2. 数据库行级锁查询库存
+        3. 更新数据库库存
+        4. 异步更新 Redis 缓存（失败不影响主流程）
+        5. 记录幂等性结果
+        6. 发送 Kafka 消息（通知下游，可选）
         """
         import asyncio
         from app.core.kafka_producer import send_inventory_event, InventoryEventType
@@ -67,111 +69,46 @@ class InventoryReservationService:
         if self.cache_service and hasattr(self.cache_service, 'check_idempotent'):
             is_duplicate, previous_result = self.cache_service.check_idempotent("reserve", order_id)
             if is_duplicate and previous_result:
-                logger.info(f"幂等命中: order_id={order_id}, 返回之前的结果")
+                logger.info(f"幂等命中：order_id={order_id}, 返回之前的结果")
                 return previous_result.get("success", True)
         
-        # 检查 Redis 是否可用
-        use_redis = False
-        redis_new_stock = None
-        
-        # 获取当前库存（从数据库，用于记录日志和校验）
-        stock = self.db.execute(
-            select(ProductStock).where(
-                ProductStock.warehouse_id == warehouse_id,
-                ProductStock.product_id == product_id
-            )
-        ).scalar_one_or_none()
-        
-        if not stock:
-            raise HTTPException(status_code=404, detail="库存记录不存在")
-        
-        before_stock = stock.available_stock
-        
-        # 检查库存是否足够
-        if stock.available_stock < quantity:
-            raise HTTPException(status_code=400, detail="库存不足")
-        
-        # 检查重复预占（数据库层面）
-        existing_reservation = self.db.execute(
-            select(InventoryReservation).where(
-                InventoryReservation.order_id == order_id,
-                InventoryReservation.warehouse_id == warehouse_id,
-                InventoryReservation.product_id == product_id,
-                InventoryReservation.status == ReservationStatus.RESERVED
-            )
-        ).scalar_one_or_none()
-        
-        if existing_reservation:
-            raise HTTPException(status_code=400, detail="该订单已预占此商品")
-        
-        # 尝试使用 Lua 脚本原子扣减
-        if self.cache_service and hasattr(self.cache_service, 'atomic_reserve_stock'):
-            try:
-                # 先设置缓存（如果不存在）
-                cache_key = self.cache_service._get_cache_key(warehouse_id, product_id)
-                self.cache_service.redis.setnx(cache_key, stock.available_stock)
-                
-                # 使用 Lua 脚本原子扣减
-                redis_new_stock, is_duplicate = self.cache_service.atomic_reserve_stock(
-                    warehouse_id=warehouse_id,
-                    product_id=product_id,
-                    quantity=quantity,
-                    order_id=order_id,
-                    ttl=900
-                )
-                
-                if is_duplicate:
-                    raise HTTPException(status_code=400, detail="该订单已预占此商品")
-                
-                if redis_new_stock is None:
-                    raise Exception("Lua 脚本执行失败")
-                
-                if redis_new_stock < 0:
-                    # Lua 脚本已自动回滚
-                    raise HTTPException(status_code=400, detail="库存不足")
-                
-                use_redis = True
-                logger.info(f"Redis Lua 原子预占成功: order_id={order_id}, 库存 {before_stock} -> {redis_new_stock}")
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                # Redis Lua 操作失败时，降级到数据库模式
-                logger.warning(f"Redis Lua 预占失败，降级到数据库: {e}")
-                use_redis = False
-                redis_new_stock = None
-        
-        # 同步更新数据库（保证一致性）
-        # 使用 Saga 模式：Redis 成功 -> 数据库失败时回滚 Redis
-        redis_success = use_redis and redis_new_stock is not None
-        
         try:
+            # 1. 使用行级锁查询库存（以数据库为准）
             stock = self.db.execute(
                 select(ProductStock).where(
                     ProductStock.warehouse_id == warehouse_id,
                     ProductStock.product_id == product_id
-                )
-                .with_for_update()
-            ).scalar_one()
+                ).with_for_update()
+            ).scalar_one_or_none()
             
-            # 再次检查库存（防止并发）
+            if not stock:
+                raise HTTPException(status_code=404, detail="库存记录不存在")
+            
+            before_stock = stock.available_stock
+            
+            # 2. 检查库存是否足够
             if stock.available_stock < quantity:
-                # 回滚 Redis（使用 Lua 脚本）
-                if redis_success:
-                    self.cache_service.atomic_release_stock(
-                        warehouse_id=warehouse_id,
-                        product_id=product_id,
-                        quantity=quantity,
-                        order_id=order_id
-                    )
                 raise HTTPException(status_code=400, detail="库存不足")
             
-            # 执行扣减
-            stock.available_stock -= quantity
-            stock.reserved_stock += quantity
-            after_stock = stock.available_stock
+            # 3. 检查重复预占（数据库层面）
+            existing_reservation = self.db.execute(
+                select(InventoryReservation).where(
+                    InventoryReservation.order_id == order_id,
+                    InventoryReservation.warehouse_id == warehouse_id,
+                    InventoryReservation.product_id == product_id,
+                    InventoryReservation.status == ReservationStatus.RESERVED
+                )
+            ).scalar_one_or_none()
             
-            # 创建预占记录
+            if existing_reservation:
+                raise HTTPException(status_code=400, detail="该订单已预占此商品")
+            
+            # 4. 执行数据库扣减
+            after_stock = stock.available_stock - quantity
+            stock.available_stock = after_stock
+            stock.reserved_stock += quantity
+            
+            # 5. 创建预占记录
             reservation = InventoryReservation(
                 warehouse_id=warehouse_id,
                 order_id=order_id,
@@ -182,7 +119,7 @@ class InventoryReservationService:
             )
             self.db.add(reservation)
             
-            # 记录日志
+            # 6. 记录日志
             log = InventoryLog(
                 warehouse_id=warehouse_id,
                 product_id=product_id,
@@ -199,35 +136,26 @@ class InventoryReservationService:
             )
             self.db.add(log)
             
+            # 7. 提交数据库事务
             self.db.commit()
             
-        except HTTPException:
-            # HTTP 异常（库存不足等），已在上方处理 Redis 回滚
-            raise
-        except Exception as e:
-            # 数据库操作失败，必须回滚 Redis
-            logger.error(f"数据库操作失败，回滚 Redis: {e}")
-            if redis_success:
+            # 8. 异步更新 Redis 缓存（即使失败也不影响主流程）
+            if self.cache_service:
                 try:
-                    self.cache_service.atomic_release_stock(
-                        warehouse_id=warehouse_id,
-                        product_id=product_id,
-                        quantity=quantity,
-                        order_id=order_id
-                    )
-                    logger.info(f"Redis 回滚成功: order_id={order_id}")
-                except Exception as rollback_err:
-                    logger.error(f"Redis 回滚失败: {rollback_err}")
-            self.db.rollback()
-            raise HTTPException(status_code=500, detail=f"库存预占失败: {str(e)}")
-        
-        # 发送 Kafka 消息（异步通知下游，可选）
-        try:
-            import threading
+                    # 设置最新库存值
+                    self.cache_service.set_cached_stock(warehouse_id, product_id, after_stock)
+                    # 记录预占信息到 Redis（用于快速检查）
+                    cache_key = f"reservation:{warehouse_id}:{product_id}"
+                    self.cache_service.redis.sadd(cache_key, order_id)
+                    self.cache_service.redis.expire(cache_key, 900)  # 15 分钟过期
+                    logger.debug(f"Redis 缓存已更新：warehouse={warehouse_id}, product={product_id}, stock={after_stock}")
+                except Exception as e:
+                    logger.warning(f"Redis 缓存更新失败（不影响主流程）: {e}")
+            
+            # 9. 发送 Kafka 消息（异步通知下游，可选）
             try:
-                # 尝试获取当前运行中的 loop
                 loop = asyncio.get_running_loop()
-                loop.create_task(send_inventory_event(
+                asyncio.create_task(send_inventory_event(
                     event_type=InventoryEventType.RESERVE,
                     warehouse_id=warehouse_id,
                     product_id=product_id,
@@ -237,8 +165,9 @@ class InventoryReservationService:
                     after_stock=after_stock
                 ))
             except RuntimeError:
-                # 没有运行中的 loop，在新线程中运行
-                def run_async_event():
+                # 没有 running loop，在新线程中运行
+                import threading
+                def run_async():
                     asyncio.run(send_inventory_event(
                         event_type=InventoryEventType.RESERVE,
                         warehouse_id=warehouse_id,
@@ -248,38 +177,45 @@ class InventoryReservationService:
                         before_stock=before_stock,
                         after_stock=after_stock
                     ))
-                threading.Thread(target=run_async_event, daemon=True).start()
-        except Exception as e:
-            logger.warning(f"Kafka 消息发送失败（不影响主流程）: {e}")
-        
-        elapsed_ms = (time.time() - start_time) * 1000
-        LoggingAspect.log_operation_success(
-            "reserve_stock",
-            extra_data={
-                'warehouse_id': warehouse_id,
-                'product_id': product_id,
-                'quantity': quantity,
-                'order_id': order_id,
-                'before_stock': before_stock,
-                'after_stock': after_stock,
-                'elapsed_ms': elapsed_ms,
-                'use_redis': use_redis
-            }
-        )
-        
-        # 失效缓存
-        self._invalidate_cache(warehouse_id, product_id)
-        
-        # 记录幂等性结果（24小时有效）
-        if self.cache_service and hasattr(self.cache_service, 'set_idempotent'):
-            self.cache_service.set_idempotent(
-                operation="reserve",
-                order_id=order_id,
-                result_data={"success": True, "warehouse_id": warehouse_id, "product_id": product_id, "quantity": quantity},
-                ttl=86400
+                threading.Thread(target=run_async, daemon=True).start()
+            except Exception as e:
+                logger.warning(f"Kafka 消息发送失败（不影响主流程）: {e}")
+            
+            elapsed_ms = (time.time() - start_time) * 1000
+            LoggingAspect.log_operation_success(
+                "reserve_stock",
+                extra_data={
+                    'warehouse_id': warehouse_id,
+                    'product_id': product_id,
+                    'quantity': quantity,
+                    'order_id': order_id,
+                    'before_stock': before_stock,
+                    'after_stock': after_stock,
+                    'elapsed_ms': elapsed_ms
+                }
             )
-        
-        return True
+            
+            # 10. 失效缓存（下次查询时会重新加载）
+            self._invalidate_cache(warehouse_id, product_id)
+            
+            # 11. 记录幂等性结果（24 小时有效）
+            if self.cache_service and hasattr(self.cache_service, 'set_idempotent'):
+                self.cache_service.set_idempotent(
+                    operation="reserve",
+                    order_id=order_id,
+                    result_data={"success": True, "warehouse_id": warehouse_id, "product_id": product_id, "quantity": quantity},
+                    ttl=86400
+                )
+            
+            return True
+            
+        except HTTPException:
+            self.db.rollback()
+            raise
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"预占库存失败：{str(e)}")
+            raise
 
     @performance_monitor
     def reserve_batch(

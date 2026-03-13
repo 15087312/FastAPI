@@ -26,6 +26,13 @@ try:
 except ImportError:
     print("python-dotenv not installed, skipping .env loading")
 
+# 配置结构化日志（在导入其他模块之前）
+from app.core.structured_logging import setup_logging, get_structured_logger
+import os
+log_format = os.getenv("LOG_FORMAT", "json")  # json 或 plain
+log_file = os.getenv("LOG_FILE", None)  # 可选的日志文件路径
+setup_logging(log_format=log_format, log_file=log_file)
+
 from app.db.session import engine
 from app.core.redis import async_redis
 from app.routers import inventory_router, perf_router, system_monitor
@@ -34,12 +41,8 @@ from app.init_data import check_and_init_data
 
 import uvicorn
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# 使用结构化日志记录器
+logger = get_structured_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -320,11 +323,22 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 # 健康检查端点
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
+
+class HealthStatus(BaseModel):
+    """健康检查响应模型"""
+    status: str
+    service: str
+    version: str
+    timestamp: str
+    checks: Dict[str, Any]
+
 @app.get(
     "/health",
-    response_model=dict,
-    summary="健康检查",
-    description="检查服务是否正常运行",
+    response_model=HealthStatus,
+    summary="完整健康检查",
+    description="检查服务是否正常运行，包括数据库、Redis、连接池等所有组件",
     responses={
         200: {
             "description": "服务健康",
@@ -333,7 +347,31 @@ async def general_exception_handler(request: Request, exc: Exception):
                     "example": {
                         "status": "healthy",
                         "service": "inventory-microservice",
-                        "version": "1.0.0"
+                        "version": "1.0.0",
+                        "timestamp": "2024-01-01T00:00:00",
+                        "checks": {
+                            "database": "ok",
+                            "redis": "ok",
+                            "db_pool": {"size": 10, "checked_out": 2, "overflow": 0}
+                        }
+                    }
+                }
+            }
+        },
+        503: {
+            "description": "服务不健康",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "unhealthy",
+                        "service": "inventory-microservice",
+                        "version": "1.0.0",
+                        "timestamp": "2024-01-01T00:00:00",
+                        "checks": {
+                            "database": "error: connection refused",
+                            "redis": "ok",
+                            "db_pool": "error: pool exhausted"
+                        }
                     }
                 }
             }
@@ -341,15 +379,92 @@ async def general_exception_handler(request: Request, exc: Exception):
     }
 )
 async def health_check():
-    """健康检查接口
+    """完整健康检查接口
     
-    返回服务的基本健康状态信息。
+    检查所有关键组件的状态：
+    - 数据库连接
+    - Redis 连接
+    - 数据库连接池状态
+    - 系统资源（如果可用）
     """
-    return {
-        "status": "healthy",
-        "service": "inventory-microservice",
-        "version": "1.0.0"
-    }
+    from datetime import datetime
+    import psutil
+    
+    checks = {}
+    is_healthy = True
+    
+    # 1. 数据库连接检查
+    try:
+        from app.db.session import engine
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {str(e)}"
+        is_healthy = False
+    
+    # 2. Redis 连接检查
+    try:
+        from app.core.redis import async_redis
+        await async_redis.ping()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"error: {str(e)}"
+        is_healthy = False
+    
+    # 3. 数据库连接池检查
+    try:
+        from app.db.session import engine
+        pool = engine.pool
+        checks["db_pool"] = {
+            "size": pool.size(),
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow()
+        }
+        # 检查连接池是否耗尽
+        if pool.checkedout() >= pool.size() and pool.overflow() <= 0:
+            checks["db_pool_status"] = "warning: pool exhausted"
+        else:
+            checks["db_pool_status"] = "ok"
+    except Exception as e:
+        checks["db_pool"] = f"error: {str(e)}"
+        is_healthy = False
+    
+    # 4. 系统资源检查（如果安装了 psutil）
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+        checks["system"] = {
+            "cpu_percent": round(cpu_percent, 2),
+            "memory_percent": round(memory.percent, 2),
+            "memory_available_mb": round(memory.available / 1024 / 1024, 2)
+        }
+        # CPU 或内存使用率超过 95% 视为不健康
+        if cpu_percent > 95 or memory.percent > 95:
+            checks["system_status"] = "warning: high resource usage"
+        else:
+            checks["system_status"] = "ok"
+    except Exception as e:
+        checks["system"] = f"warning: {str(e)} (psutil may not be installed)"
+    
+    # 5. Kafka 消费者检查（可选）
+    try:
+        from app.services.kafka_consumer import kafka_consumer
+        # 简单检查，实际应该检查消费者状态
+        checks["kafka_consumer"] = "running" if kafka_consumer else "not started"
+    except Exception as e:
+        checks["kafka_consumer"] = f"warning: {str(e)}"
+    
+    status = "healthy" if is_healthy else "unhealthy"
+    
+    return HealthStatus(
+        status=status,
+        service="inventory-microservice",
+        version="1.0.0",
+        timestamp=datetime.now().isoformat(),
+        checks=checks
+    )
 
 @app.get(
     "/",

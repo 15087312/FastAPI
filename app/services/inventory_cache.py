@@ -221,23 +221,23 @@ class InventoryCacheService:
     """
     
     # 批量原子扣减库存 Lua 脚本
-    # 返回值: [[product_id, new_stock, success], ...]
+    # 返回值：[[product_id, new_stock, success], ...]
     BATCH_RESERVE_LUA = """
     local results = {}
-    local n = #ARGV / 3
-    
+    local warehouse_id = ARGV[1]
+    local n = (#ARGV - 1) / 2
+        
     for i = 1, n do
-        local idx = (i - 1) * 3
-        local product_id = tonumber(ARGV[idx + 1])
-        local quantity = tonumber(ARGV[idx + 2])
-        local order_id = ARGV[idx + 3]
-        
-        local stock_key = 'stock:available:WH01:' .. product_id
-        local reservation_key = 'reservation:WH01:' .. product_id
-        
+        local idx = (i - 1) * 2 + 2
+        local product_id = tonumber(ARGV[idx])
+        local quantity = tonumber(ARGV[idx + 1])
+            
+        local stock_key = 'stock:available:' .. warehouse_id .. ':' .. product_id
+        local reservation_key = 'reservation:' .. warehouse_id .. ':' .. product_id
+            
         -- 获取当前库存
         local current_stock = tonumber(redis.call('GET', stock_key) or '0')
-        
+            
         -- 检查库存和重复
         local success = 0
         if current_stock >= quantity and redis.call('SISMEMBER', reservation_key, order_id) == 0 then
@@ -247,12 +247,12 @@ class InventoryCacheService:
             current_stock = current_stock - quantity
             success = 1
         end
-        
+            
         table.insert(results, product_id)
         table.insert(results, current_stock)
         table.insert(results, success)
     end
-    
+        
     return results
     """
 
@@ -359,27 +359,27 @@ class InventoryCacheService:
         items: list
     ) -> list:
         """原子批量预占库存（使用 Lua 脚本）
-        
+            
         Args:
             warehouse_id: 仓库 ID
             order_id: 订单 ID
             items: [(product_id, quantity), ...]
-            
+                
         Returns:
             [{product_id, new_stock, success}, ...]
         """
         if not self.redis or not self._batch_reserve_script:
             return []
-        
-        # 构建参数: [product_id, quantity, order_id, ...]
-        args = []
+            
+        # 构建参数：[warehouse_id, product_id, quantity, ...]
+        args = [warehouse_id]
         for product_id, quantity in items:
-            args.extend([product_id, quantity, order_id])
-        
+            args.extend([product_id, quantity])
+            
         try:
             result = self._batch_reserve_script(args=args)
-            
-            # 解析结果: [product_id, new_stock, success, ...]
+                
+            # 解析结果：[product_id, new_stock, success, ...]
             results = []
             for i in range(0, len(result), 3):
                 results.append({
@@ -387,16 +387,16 @@ class InventoryCacheService:
                     'new_stock': result[i + 1],
                     'success': bool(result[i + 2])
                 })
-            
+                
             return results
-            
+                
         except Exception as e:
-            logger.error(f"原子批量预占失败: {e}")
+            logger.error(f"原子批量预占失败：{e}")
             return []
 
     # ==================== 幂等性校验 ====================
     
-    def check_idempotent(self, operation: str, order_id: str) -> tuple[bool, dict]:
+    def check_idempotent(self, operation: str, order_id: str) -> tuple[bool, Optional[dict]]:
         """检查操作是否已经处理过（幂等性校验）
         
         Args:

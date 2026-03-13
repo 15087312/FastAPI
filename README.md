@@ -1,6 +1,15 @@
 # FastAPI 库存微服务
 
-一个专业的、生产级的库存微服务，支持高并发环境下的库存安全管理，防止超卖问题。
+一个专业的、生产级的库存微服务，**基于 Docker 部署**，支持高并发环境下的库存安全管理，防止超卖问题。
+
+## 🚀 快速启动
+
+**只需一条命令**：
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+详细说明请参考：[DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md)
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-green)](https://fastapi.tiangolo.com/)
@@ -88,163 +97,111 @@
 - ✅ **完整健康检查** - 数据库、Redis、连接池、系统资源全方位监控
 - ✅ **AOP 切面** - 统一处理日志、性能监控、缓存失效
 
-## 快速开始
+## 🚀 快速开始（Docker 一键启动）
 
 ### 环境要求
-- Python 3.8+
-- Docker & Docker Compose
-- PostgreSQL 15+
-- Redis 7+
+- Docker 20+
+- Docker Compose 2.0+
 
-### 一、环境配置
+### 启动所有服务
 ```bash
 # 克隆项目
 git clone https://github.com/15087312/FastAPI.git
 cd FastAPI_mall
 
-# 创建环境变量
- cp .env.example .env
+# 复制环境变量配置
+cp .env.docker .env.docker
 
-# 编辑 .env 文件配置数据库和 Redis 连接
+# 启动所有服务（PostgreSQL, Redis, Kafka, 应用）
+docker-compose -f docker-compose.prod.yml up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看应用日志
+docker logs -f fastapi_app
 ```
 
-### 二、启动基础服务
-```bash
-# 启动 PostgreSQL 和 Redis
-docker compose up -d
-
-# 验证服务状态
-docker compose ps
-```
-
-### 三、安装依赖并启动应用
-```bash
-# 安装 Python 依赖
-pip install -r requirements.txt
-
-# 启动开发服务器
-uvicorn app.main:app --reload
-```
-
-### 四、访问应用
-- **API 文档**: http://localhost:8000/docs (Swagger UI)
-- **ReDoc 文档**: http://localhost:8000/redoc
-- **OpenAPI JSON**: http://localhost:8000/openapi.json
+### 访问服务
+- **API 文档**: http://localhost:8000/docs
+- **ReDoc 文档**: http://localhost:8000/redoc  
 - **健康检查**: http://localhost:8000/health
 - **系统监控**: http://localhost:8000/api/v1/system/metrics
-- **pgAdmin**: http://localhost:5050
+- **pgAdmin**: http://localhost:5050 (admin@example.com / 123456)
 
-### 五、OpenAPI 功能特性
+### 停止服务
+```bash
+docker-compose -f docker-compose.prod.yml down
+```
 
-#### 自动生成的 API 文档
-项目集成了完整的 OpenAPI 3.0 规范支持，提供：
-
-- **Swagger UI 界面** - 交互式 API 测试界面
-- **ReDoc 文档** - 美观的静态文档界面  
-- **JSON 规范导出** - 标准 OpenAPI 3.0 JSON 格式
-
-#### 核心 API 端点
+### 核心 API 端点
 - `POST /api/v1/inventory/reserve` - 预占库存
 - `POST /api/v1/inventory/confirm/{order_id}` - 确认库存
 - `POST /api/v1/inventory/release/{order_id}` - 释放库存
 - `GET /api/v1/inventory/stock/{product_id}` - 查询单个商品库存
 - `POST /api/v1/inventory/stock/batch` - 批量查询库存
 - `POST /api/v1/inventory/cleanup/manual` - 手动清理过期预占
-- `POST /api/v1/inventory/cleanup/celery` - 异步清理任务
-- `GET /api/v1/inventory/cleanup/status/{task_id}` - 查询清理任务状态
 
-#### 文档特性
-- 完整的参数说明和数据类型验证
-- 详细的响应示例和错误码说明
-- 支持在线测试 API 接口
-- 自动生成的 Pydantic 模型文档
-
-## 🛠️ 环境配置详解
+## 🛠️ Docker 环境配置详解
 
 ### Docker Compose 配置
-项目使用 Docker Compose 管理依赖服务：
+项目使用 Docker Compose 管理所有依赖服务（PostgreSQL, Redis, Kafka, pgAdmin）：
 
-```yaml
-version: '3.8'
-services:
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: mydb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123456
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    
-  pgadmin:
-    image: dpage/pgadmin4
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - db
-
-volumes:
-  postgres_data:
-  redis_data:
-```
+完整配置请参考 `docker-compose.prod.yml` 文件。
 
 ### 环境变量配置
-创建 `.env` 文件配置应用环境：
+Docker 环境使用 `.env.docker` 文件配置应用环境：
 
 ```bash
-# 数据库配置
-DATABASE_URL=postgresql://postgres:123456@localhost:5432/mydb
+# 数据库配置（Docker 网络）
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+POSTGRES_DB=mydb
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=123456
 
-# Redis 配置
-REDIS_HOST=localhost
+# Redis 配置（Docker 网络）
+REDIS_HOST=redis
 REDIS_PORT=6379
-REDIS_DB=0
+
+# Kafka 配置
+KAFKA_BOOTSTRAP_SERVERS=kafka:9094
+KAFKA_ENABLED=true
 
 # 应用配置
-APP_ENV=development
-DEBUG=True
-
-# Redis分布式锁配置
-REDIS_LOCK_TTL=10000
+DEBUG=False
+PORT=8000
 ```
 
-### 服务管理命令
+### Docker 服务管理命令
 
 ```bash
 # 启动所有服务
-docker compose up -d
+docker-compose -f docker-compose.prod.yml up -d
 
 # 查看服务状态
-docker compose ps
+docker-compose ps
 
 # 查看服务日志
-docker compose logs -f
+docker-compose logs -f
 
-docker compose logs -f db     # 数据库日志
-docker compose logs -f redis  # Redis日志
+# 查看特定服务日志
+docker-compose logs -f app        # 应用日志
+docker-compose logs -f db         # 数据库日志
+docker-compose logs -f redis      # Redis 日志
+docker-compose logs -f kafka      # Kafka 日志
 
 # 停止服务
-docker compose down
+docker-compose -f docker-compose.prod.yml down
 
-# 停止并清除数据
-docker compose down -v
+# 停止并清除数据卷
+docker-compose -f docker-compose.prod.yml down -v
 
 # 重启特定服务
-docker compose restart db
-docker compose restart redis
+docker-compose restart db
+docker-compose restart redis
+docker-compose restart kafka
+docker-compose restart app
 ```
 
 ## 🏗️ 项目架构

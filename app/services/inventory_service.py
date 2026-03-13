@@ -15,16 +15,40 @@ from app.services.inventory_log import InventoryLogService
 
 logger = logging.getLogger(__name__)
 
+# 全局缓存服务实例（复用，避免每次创建）
+_global_cache_service: Optional[InventoryCacheService] = None
+
+
+def get_global_cache_service(redis: Redis = None) -> InventoryCacheService:
+    """获取全局缓存服务实例（单例模式）
+    
+    Args:
+        redis: Redis客户端实例
+    
+    Returns:
+        InventoryCacheService实例
+    """
+    global _global_cache_service
+    
+    if _global_cache_service is None:
+        _global_cache_service = InventoryCacheService(redis)
+        logger.debug("创建全局缓存服务实例")
+    elif redis is not None and _global_cache_service.redis is None:
+        # 如果之前没有Redis连接，现在有了，更新连接
+        _global_cache_service.redis = redis
+    
+    return _global_cache_service
+
 
 class InventoryService:
-    """库存服务 Facade - 统一入口，组合所有子服务"""
+    """库存服务 Facade - 统一入口，组合所有子服务（优化版：复用缓存服务）"""
 
     def __init__(self, db: Session, redis: Redis = None):
         self.db = db
         self.redis = redis
 
-        # 初始化缓存服务
-        self.cache_service = InventoryCacheService(redis)
+        # 复用全局缓存服务（不再每次创建新实例）
+        self.cache_service = get_global_cache_service(redis)
 
         # 初始化子服务（共享缓存服务和数据库会话）
         # 使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全

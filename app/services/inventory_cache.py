@@ -11,19 +11,152 @@ NULL_CACHE_MARKER = -1
 NULL_CACHE_TTL = 60  # 空值缓存 60 秒
 
 
+# ==================== 预注册的 Lua 脚本（应用启动时注册一次） ====================
+# 原子扣减库存 Lua 脚本
+# 返回值: [new_stock, is_duplicate]
+# - new_stock: 扣减后的库存（如果失败返回负数）
+# - is_duplicate: 1 表示重复预占，0 表示正常
+RESERVE_STOCK_LUA = """
+local stock_key = KEYS[1]
+local reservation_key = KEYS[2]
+local quantity = tonumber(ARGV[1])
+local order_id = ARGV[2]
+local ttl = tonumber(ARGV[3])
+
+-- 获取当前库存
+local current_stock = tonumber(redis.call('GET', stock_key) or '0')
+
+-- 检查库存是否足够
+if current_stock < quantity then
+    return {current_stock, 0}
+end
+
+-- 检查是否重复预占
+if redis.call('SISMEMBER', reservation_key, order_id) == 1 then
+    return {current_stock, 1}
+end
+
+-- 原子扣减库存
+local new_stock = redis.call('DECRBY', stock_key, quantity)
+
+-- 记录预占信息
+redis.call('SADD', reservation_key, order_id)
+redis.call('EXPIRE', reservation_key, ttl)
+
+return {new_stock, 0}
+"""
+
+# 原子释放库存 Lua 脚本
+# 返回值: [new_stock, is_not_found]
+RELEASE_STOCK_LUA = """
+local stock_key = KEYS[1]
+local reservation_key = KEYS[2]
+local quantity = tonumber(ARGV[1])
+local order_id = ARGV[2]
+
+-- 检查预占记录是否存在
+if redis.call('SISMEMBER', reservation_key, order_id) == 0 then
+    return {-1, 1}
+end
+
+-- 原子增加库存
+local new_stock = redis.call('INCRBY', stock_key, quantity)
+
+-- 移除预占记录
+redis.call('SREM', reservation_key, order_id)
+
+return {new_stock, 0}
+"""
+
+# 批量原子扣减库存 Lua 脚本
+# 返回值：[[product_id, new_stock, success], ...]
+BATCH_RESERVE_LUA = """
+local results = {}
+local warehouse_id = ARGV[1]
+local n = (#ARGV - 1) / 2
+
+for i = 1, n do
+    local idx = (i - 1) * 2 + 2
+    local product_id = tonumber(ARGV[idx])
+    local quantity = tonumber(ARGV[idx + 1])
+
+    local stock_key = 'stock:available:' .. warehouse_id .. ':' .. product_id
+    local reservation_key = 'reservation:' .. warehouse_id .. ':' .. product_id
+
+    -- 获取当前库存
+    local current_stock = tonumber(redis.call('GET', stock_key) or '0')
+
+    -- 检查库存和重复
+    local success = 0
+    if current_stock >= quantity and redis.call('SISMEMBER', reservation_key, order_id) == 0 then
+        redis.call('DECRBY', stock_key, quantity)
+        redis.call('SADD', reservation_key, order_id)
+        redis.call('EXPIRE', reservation_key, 900)
+        current_stock = current_stock - quantity
+        success = 1
+    end
+
+    table.insert(results, product_id)
+    table.insert(results, current_stock)
+    table.insert(results, success)
+end
+
+return results
+"""
+
+
+# 预注册的脚本对象（单例）
+_registered_scripts = {}
+
+
+def init_lua_scripts(redis_client: Redis):
+    """应用启动时预注册所有Lua脚本（只执行一次）
+    
+    Args:
+        redis_client: Redis客户端实例
+    """
+    global _registered_scripts
+    
+    if not redis_client:
+        logger.warning("Redis客户端未初始化，无法注册Lua脚本")
+        return
+    
+    # 如果已经注册过，直接返回
+    if _registered_scripts:
+        logger.debug("Lua脚本已预注册，跳过")
+        return
+    
+    try:
+        _registered_scripts['reserve'] = redis_client.register_script(RESERVE_STOCK_LUA)
+        _registered_scripts['release'] = redis_client.register_script(RELEASE_STOCK_LUA)
+        _registered_scripts['batch_reserve'] = redis_client.register_script(BATCH_RESERVE_LUA)
+        logger.info("✅ Lua脚本预注册成功")
+    except Exception as e:
+        logger.error(f"Lua脚本预注册失败: {e}")
+        raise
+
+
+def get_registered_script(name: str):
+    """获取预注册的Lua脚本对象
+    
+    Args:
+        name: 脚本名称 (reserve, release, batch_reserve)
+    
+    Returns:
+        注册的脚本对象
+    """
+    return _registered_scripts.get(name)
+
+
 class InventoryCacheService:
-    """库存缓存服务"""
+    """库存缓存服务（优化版：复用预注册的Lua脚本）"""
 
     def __init__(self, redis: Redis = None):
         self.redis = redis
-        # 预编译 Lua 脚本
-        self._reserve_script = None
-        self._release_script = None
-        self._batch_reserve_script = None
-        if self.redis:
-            self._reserve_script = self.redis.register_script(self.RESERVE_STOCK_LUA)
-            self._release_script = self.redis.register_script(self.RELEASE_STOCK_LUA)
-            self._batch_reserve_script = self.redis.register_script(self.BATCH_RESERVE_LUA)
+        # 复用预注册的Lua脚本，避免每次创建服务都重新注册
+        self._reserve_script = get_registered_script('reserve')
+        self._release_script = get_registered_script('release')
+        self._batch_reserve_script = get_registered_script('batch_reserve')
 
     def _get_cache_key(self, warehouse_id: str, product_id: int) -> str:
         """生成库存缓存键"""
@@ -166,99 +299,7 @@ class InventoryCacheService:
 
         pipe.execute()
 
-    # ==================== Lua 脚本 ====================
-    
-    # 原子扣减库存 Lua 脚本
-    # 返回值: [new_stock, is_duplicate]
-    # - new_stock: 扣减后的库存（如果失败返回负数）
-    # - is_duplicate: 1 表示重复预占，0 表示正常
-    RESERVE_STOCK_LUA = """
-    local stock_key = KEYS[1]
-    local reservation_key = KEYS[2]
-    local quantity = tonumber(ARGV[1])
-    local order_id = ARGV[2]
-    local ttl = tonumber(ARGV[3])
-    
-    -- 获取当前库存
-    local current_stock = tonumber(redis.call('GET', stock_key) or '0')
-    
-    -- 检查库存是否足够
-    if current_stock < quantity then
-        return {current_stock, 0}
-    end
-    
-    -- 检查是否重复预占
-    if redis.call('SISMEMBER', reservation_key, order_id) == 1 then
-        return {current_stock, 1}
-    end
-    
-    -- 原子扣减库存
-    local new_stock = redis.call('DECRBY', stock_key, quantity)
-    
-    -- 记录预占信息
-    redis.call('SADD', reservation_key, order_id)
-    redis.call('EXPIRE', reservation_key, ttl)
-    
-    return {new_stock, 0}
-    """
-    
-    # 原子释放库存 Lua 脚本
-    # 返回值: [new_stock, is_not_found]
-    RELEASE_STOCK_LUA = """
-    local stock_key = KEYS[1]
-    local reservation_key = KEYS[2]
-    local quantity = tonumber(ARGV[1])
-    local order_id = ARGV[2]
-    
-    -- 检查预占记录是否存在
-    if redis.call('SISMEMBER', reservation_key, order_id) == 0 then
-        return {-1, 1}
-    end
-    
-    -- 原子增加库存
-    local new_stock = redis.call('INCRBY', stock_key, quantity)
-    
-    -- 移除预占记录
-    redis.call('SREM', reservation_key, order_id)
-    
-    return {new_stock, 0}
-    """
-    
-    # 批量原子扣减库存 Lua 脚本
-    # 返回值：[[product_id, new_stock, success], ...]
-    BATCH_RESERVE_LUA = """
-    local results = {}
-    local warehouse_id = ARGV[1]
-    local n = (#ARGV - 1) / 2
-        
-    for i = 1, n do
-        local idx = (i - 1) * 2 + 2
-        local product_id = tonumber(ARGV[idx])
-        local quantity = tonumber(ARGV[idx + 1])
-            
-        local stock_key = 'stock:available:' .. warehouse_id .. ':' .. product_id
-        local reservation_key = 'reservation:' .. warehouse_id .. ':' .. product_id
-            
-        -- 获取当前库存
-        local current_stock = tonumber(redis.call('GET', stock_key) or '0')
-            
-        -- 检查库存和重复
-        local success = 0
-        if current_stock >= quantity and redis.call('SISMEMBER', reservation_key, order_id) == 0 then
-            redis.call('DECRBY', stock_key, quantity)
-            redis.call('SADD', reservation_key, order_id)
-            redis.call('EXPIRE', reservation_key, 900)
-            current_stock = current_stock - quantity
-            success = 1
-        end
-            
-        table.insert(results, product_id)
-        table.insert(results, current_stock)
-        table.insert(results, success)
-    end
-        
-    return results
-    """
+    # ==================== Lua 脚本方法（已移至模块级别预注册）====================
 
     def atomic_reserve_stock(
         self,

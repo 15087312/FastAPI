@@ -47,59 +47,92 @@ class InventoryOperationService:
         remark: Optional[str] = None,
         source: str = "manual"
     ) -> Dict[str, Any]:
-        """入库/补货 - 使用数据库行级锁"""
+        """入库/补货 - Redis 原子操作，异步写入数据库"""
         try:
-            stock = self.db.execute(
-                select(ProductStock)
-                .where(
-                    ProductStock.warehouse_id == warehouse_id,
-                    ProductStock.product_id == product_id
-                )
-                .with_for_update()
-            ).scalar_one_or_none()
-
-            if not stock:
-                stock = ProductStock(
-                    warehouse_id=warehouse_id,
-                    product_id=product_id,
-                    available_stock=0,
-                    reserved_stock=0,
-                    frozen_stock=0,
-                    safety_stock=0
-                )
-                self.db.add(stock)
-                self.db.flush()
-                stock = self.db.execute(
-                    select(ProductStock)
-                    .where(
-                        ProductStock.warehouse_id == warehouse_id,
-                        ProductStock.product_id == product_id
-                    )
-                    .with_for_update()
-                ).scalar_one()
-
-            before_available = stock.available_stock
-            stock.available_stock += quantity
-
-            log = InventoryLog(
-                warehouse_id=warehouse_id,
-                product_id=product_id,
-                order_id=order_id,
-                change_type=ChangeType.INCREASE,
-                quantity=quantity,
-                before_available=before_available,
-                after_available=stock.available_stock,
-                before_reserved=stock.reserved_stock,
-                after_reserved=stock.reserved_stock,
-                before_frozen=stock.frozen_stock,
-                after_frozen=stock.frozen_stock,
-                remark=remark,
-                operator=operator or "system",
-                source=source
-            )
-            self.db.add(log)
-
-            self.db.commit()
+            if not self.cache_service:
+                raise HTTPException(status_code=500, detail="缓存服务未初始化")
+            
+            # 1. 获取当前库存（从 Redis）
+            current_stock = self.cache_service.get_cached_stock(warehouse_id, product_id)
+            if current_stock is None:
+                # Redis 中没有，查数据库
+                db_stock = self.query_service._get_or_create_stock(warehouse_id, product_id)
+                current_stock = db_stock.available_stock
+                # 写入 Redis
+                self.cache_service.set_cached_stock(warehouse_id, product_id, current_stock)
+            
+            before_stock = current_stock
+            after_stock = current_stock + quantity
+            
+            # 2. 更新 Redis 库存
+            self.cache_service.set_cached_stock(warehouse_id, product_id, after_stock)
+            
+            logger.info(f"✅ Redis 入库成功：stock={before_stock}→{after_stock}")
+            
+            # 3. 异步写入数据库（使用独立连接）
+            import asyncio
+            from app.services.inventory_sync import InventorySyncService
+            
+            try:
+                loop = asyncio.get_running_loop()
+                
+                async def sync_to_db():
+                    from app.db.session import SessionLocal
+                    db_session = SessionLocal()  # 创建独立的数据库连接
+                    try:
+                        sync_service = InventorySyncService(db_session)
+                        success = sync_service.sync_increase_to_db(
+                            warehouse_id=warehouse_id,
+                            product_id=product_id,
+                            quantity=quantity,
+                            new_stock=after_stock,
+                            order_id=order_id,
+                            operator=operator or "system"
+                        )
+                        if not success:
+                            logger.error(f"数据库同步失败：warehouse={warehouse_id}, product={product_id}")
+                    except Exception as e:
+                        logger.error(f"数据库同步异常：{e}")
+                        db_session.rollback()
+                    finally:
+                        db_session.close()
+                
+                asyncio.create_task(sync_to_db())
+                logger.debug(f"已创建异步任务同步数据库：warehouse={warehouse_id}, product={product_id}")
+                
+            except RuntimeError:
+                import threading
+                def run_async():
+                    from app.db.session import SessionLocal
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    db_session = SessionLocal()  # 创建独立的数据库连接
+                    try:
+                        sync_service = InventorySyncService(db_session)
+                        success = sync_service.sync_increase_to_db(
+                            warehouse_id=warehouse_id,
+                            product_id=product_id,
+                            quantity=quantity,
+                            new_stock=after_stock,
+                            order_id=order_id,
+                            operator=operator or "system"
+                        )
+                        if not success:
+                            logger.error(f"数据库同步失败")
+                    except Exception as e:
+                        logger.error(f"数据库同步异常：{e}")
+                        db_session.rollback()
+                    finally:
+                        db_session.close()
+                        new_loop.close()
+                
+                thread = threading.Thread(target=run_async, daemon=True)
+                thread.start()
+                logger.debug(f"已创建线程同步数据库")
+                
+            except Exception as e:
+                logger.warning(f"异步同步数据库失败（不影响主流程）: {e}")
+            
             LoggingAspect.log_operation_success(
                 "increase_stock",
                 extra_data={
@@ -109,18 +142,15 @@ class InventoryOperationService:
                 }
             )
             
-            self._invalidate_cache(warehouse_id, product_id)
-
             return {
                 "warehouse_id": warehouse_id,
                 "product_id": product_id,
-                "before_stock": before_available,
-                "after_stock": stock.available_stock,
+                "before_stock": before_stock,
+                "after_stock": after_stock,
                 "quantity": quantity
             }
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"入库失败：{str(e)}")
             raise
 

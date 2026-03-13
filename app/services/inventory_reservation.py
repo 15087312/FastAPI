@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from app.models.product_stocks import ProductStock
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
@@ -20,6 +21,9 @@ from app.core.aspects import (
 # 使用结构化日志
 from app.core.structured_logging import get_structured_logger
 logger = get_structured_logger(__name__)
+
+# 全局线程池（用于异步同步数据库，避免频繁创建线程）
+_db_sync_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="db_sync_")
 
 
 class InventoryReservationService:
@@ -50,18 +54,17 @@ class InventoryReservationService:
         quantity: int,
         order_id: str
     ) -> bool:
-        """预占库存 - 以数据库为唯一数据源，Redis 仅作为缓存
+        """预占库存 - Redis Lua 脚本原子操作，异步写入数据库
         
         流程：
-        1. 幂等性检查（已处理直接返回）
-        2. 数据库行级锁查询库存
-        3. 更新数据库库存
-        4. 异步更新 Redis 缓存（失败不影响主流程）
-        5. 记录幂等性结果
-        6. 发送 Kafka 消息（通知下游，可选）
+        1. 幂等性检查（Redis）
+        2. Redis Lua 脚本原子扣减库存
+        3. 异步写入数据库（不阻塞主流程）
+        4. 记录幂等性结果
         """
         import asyncio
         from app.core.kafka_producer import send_inventory_event, InventoryEventType
+        from app.services.inventory_sync import InventorySyncService
         
         start_time = time.time()
         
@@ -73,113 +76,89 @@ class InventoryReservationService:
                 return previous_result.get("success", True)
         
         try:
-            # 1. 使用行级锁查询库存（以数据库为准）
-            stock = self.db.execute(
-                select(ProductStock).where(
-                    ProductStock.warehouse_id == warehouse_id,
-                    ProductStock.product_id == product_id
-                ).with_for_update()
-            ).scalar_one_or_none()
+            # 1. 使用 Redis Lua 脚本原子扣减库存
+            if not self.cache_service:
+                raise HTTPException(status_code=500, detail="缓存服务未初始化")
             
-            if not stock:
-                raise HTTPException(status_code=404, detail="库存记录不存在")
-            
-            before_stock = stock.available_stock
-            
-            # 2. 检查库存是否足够
-            if stock.available_stock < quantity:
-                raise HTTPException(status_code=400, detail="库存不足")
-            
-            # 3. 检查重复预占（数据库层面）
-            existing_reservation = self.db.execute(
-                select(InventoryReservation).where(
-                    InventoryReservation.order_id == order_id,
-                    InventoryReservation.warehouse_id == warehouse_id,
-                    InventoryReservation.product_id == product_id,
-                    InventoryReservation.status == ReservationStatus.RESERVED
-                )
-            ).scalar_one_or_none()
-            
-            if existing_reservation:
-                raise HTTPException(status_code=400, detail="该订单已预占此商品")
-            
-            # 4. 执行数据库扣减
-            after_stock = stock.available_stock - quantity
-            stock.available_stock = after_stock
-            stock.reserved_stock += quantity
-            
-            # 5. 创建预占记录
-            reservation = InventoryReservation(
+            new_stock, is_duplicate = self.cache_service.atomic_reserve_stock(
                 warehouse_id=warehouse_id,
-                order_id=order_id,
                 product_id=product_id,
                 quantity=quantity,
-                status=ReservationStatus.RESERVED,
-                expired_at=datetime.utcnow() + timedelta(minutes=15)
-            )
-            self.db.add(reservation)
-            
-            # 6. 记录日志
-            log = InventoryLog(
-                warehouse_id=warehouse_id,
-                product_id=product_id,
                 order_id=order_id,
-                change_type=ChangeType.RESERVE,
-                quantity=-quantity,
-                before_available=before_stock,
-                after_available=after_stock,
-                before_reserved=stock.reserved_stock - quantity,
-                after_reserved=stock.reserved_stock,
-                before_frozen=stock.frozen_stock,
-                after_frozen=stock.frozen_stock,
-                operator="order_service"
+                ttl=900  # 15 分钟
             )
-            self.db.add(log)
             
-            # 7. 提交数据库事务
-            self.db.commit()
+            if is_duplicate:
+                logger.warning(f"重复预占：order_id={order_id}")
+                raise HTTPException(status_code=400, detail="该订单已预占此商品")
             
-            # 8. 异步更新 Redis 缓存（即使失败也不影响主流程）
-            if self.cache_service:
-                try:
-                    # 设置最新库存值
-                    self.cache_service.set_cached_stock(warehouse_id, product_id, after_stock)
-                    # 记录预占信息到 Redis（用于快速检查）
-                    cache_key = f"reservation:{warehouse_id}:{product_id}"
-                    self.cache_service.redis.sadd(cache_key, order_id)
-                    self.cache_service.redis.expire(cache_key, 900)  # 15 分钟过期
-                    logger.debug(f"Redis 缓存已更新：warehouse={warehouse_id}, product={product_id}, stock={after_stock}")
-                except Exception as e:
-                    logger.warning(f"Redis 缓存更新失败（不影响主流程）: {e}")
+            if new_stock < 0:
+                logger.warning(f"库存不足：warehouse={warehouse_id}, product={product_id}, stock={new_stock}")
+                raise HTTPException(status_code=400, detail="库存不足")
             
-            # 9. 发送 Kafka 消息（异步通知下游，可选）
+            before_stock = new_stock + quantity  # 计算扣减前的库存
+            after_stock = new_stock
+            
+            logger.info(f"✅ Redis 预占成功：order={order_id}, stock={before_stock}→{after_stock}")
+            
+            # 2. 异步写入数据库（不阻塞主流程）
             try:
                 loop = asyncio.get_running_loop()
-                asyncio.create_task(send_inventory_event(
-                    event_type=InventoryEventType.RESERVE,
-                    warehouse_id=warehouse_id,
-                    product_id=product_id,
-                    quantity=quantity,
-                    order_id=order_id,
-                    before_stock=before_stock,
-                    after_stock=after_stock
-                ))
+                
+                async def sync_to_db():
+                    """异步同步到数据库（使用独立连接，避免阻塞）"""
+                    from app.db.session import SessionLocal
+                    db_session = SessionLocal()  # 创建独立的数据库连接
+                    try:
+                        sync_service = InventorySyncService(db_session)
+                        success = sync_service.sync_reserve_to_db(
+                            warehouse_id=warehouse_id,
+                            product_id=product_id,
+                            quantity=quantity,
+                            order_id=order_id,
+                            new_stock=after_stock
+                        )
+                        if not success:
+                            logger.error(f"数据库同步失败，需要人工介入：order={order_id}")
+                    except Exception as e:
+                        logger.error(f"数据库同步异常：{e}")
+                        db_session.rollback()
+                    finally:
+                        db_session.close()
+                
+                asyncio.create_task(sync_to_db())
+                logger.debug(f"已创建异步任务同步数据库：order={order_id}")
+                
             except RuntimeError:
-                # 没有 running loop，在新线程中运行
-                import threading
+                # 没有 running loop，使用线程池执行（复用线程，避免频繁创建）
                 def run_async():
-                    asyncio.run(send_inventory_event(
-                        event_type=InventoryEventType.RESERVE,
-                        warehouse_id=warehouse_id,
-                        product_id=product_id,
-                        quantity=quantity,
-                        order_id=order_id,
-                        before_stock=before_stock,
-                        after_stock=after_stock
-                    ))
-                threading.Thread(target=run_async, daemon=True).start()
+                    from app.db.session import SessionLocal
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    db_session = SessionLocal()  # 创建独立的数据库连接
+                    try:
+                        sync_service = InventorySyncService(db_session)
+                        success = sync_service.sync_reserve_to_db(
+                            warehouse_id=warehouse_id,
+                            product_id=product_id,
+                            quantity=quantity,
+                            order_id=order_id,
+                            new_stock=after_stock
+                        )
+                        if not success:
+                            logger.error(f"数据库同步失败：order={order_id}")
+                    except Exception as e:
+                        logger.error(f"数据库同步异常：{e}")
+                        db_session.rollback()
+                    finally:
+                        db_session.close()
+                        new_loop.close()
+                
+                _db_sync_executor.submit(run_async)
+                logger.debug(f"已提交线程池任务同步数据库：order={order_id}")
+                
             except Exception as e:
-                logger.warning(f"Kafka 消息发送失败（不影响主流程）: {e}")
+                logger.warning(f"异步同步数据库失败（不影响主流程）: {e}")
             
             elapsed_ms = (time.time() - start_time) * 1000
             LoggingAspect.log_operation_success(
@@ -195,10 +174,7 @@ class InventoryReservationService:
                 }
             )
             
-            # 10. 失效缓存（下次查询时会重新加载）
-            self._invalidate_cache(warehouse_id, product_id)
-            
-            # 11. 记录幂等性结果（24 小时有效）
+            # 3. 记录幂等性结果（24 小时有效）
             if self.cache_service and hasattr(self.cache_service, 'set_idempotent'):
                 self.cache_service.set_idempotent(
                     operation="reserve",
@@ -210,10 +186,8 @@ class InventoryReservationService:
             return True
             
         except HTTPException:
-            self.db.rollback()
             raise
         except Exception as e:
-            self.db.rollback()
             logger.error(f"预占库存失败：{str(e)}")
             raise
 
@@ -487,66 +461,139 @@ class InventoryReservationService:
 
     @performance_monitor
     def release_stock(self, order_id: str) -> bool:
-        """释放库存（归还预占）+ 幂等性保证
-        
-        使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
+        """释放库存（归还预占） - Redis Lua 脚本原子操作，异步写入数据库
+            
+        流程：
+        1. 幂等性检查（Redis）
+        2. Redis Lua 脚本原子释放库存
+        3. 异步写入数据库（不阻塞主流程）
+        4. 记录幂等性结果
         """
+        import asyncio
+        from app.services.inventory_sync import InventorySyncService
+            
         # 幂等性检查
         if self.cache_service and hasattr(self.cache_service, 'check_idempotent'):
             is_duplicate, previous_result = self.cache_service.check_idempotent("release", order_id)
             if is_duplicate and previous_result:
-                logger.info(f"幂等命中(release): order_id={order_id}, 返回之前的结果")
+                logger.info(f"幂等命中 (release): order_id={order_id}, 返回之前的结果")
                 return previous_result.get("success", True)
-        
+            
         start_time = time.time()
-        reservations = self.db.execute(
-            select(InventoryReservation)
-            .where(
-                InventoryReservation.order_id == order_id,
-                InventoryReservation.status == ReservationStatus.RESERVED
-            )
-        ).scalars().all()
-
-        if not reservations:
-            raise HTTPException(status_code=404, detail="未找到有效的预占记录")
-
-        for reservation in reservations:
-            product_stock = self.db.execute(
-                select(ProductStock)
-                .where(
-                    ProductStock.warehouse_id == reservation.warehouse_id,
-                    ProductStock.product_id == reservation.product_id
+            
+        try:
+            # 1. 查询预占记录（从数据库获取信息）
+            reservations = self.db.execute(
+                select(InventoryReservation).where(
+                    InventoryReservation.order_id == order_id,
+                    InventoryReservation.status == ReservationStatus.RESERVED
                 )
-                .with_for_update()
-            ).scalar_one()
-
-            product_stock.available_stock += reservation.quantity
-            product_stock.reserved_stock -= reservation.quantity
-
-            reservation.status = ReservationStatus.RELEASED
-
-            log = InventoryLog(
-                warehouse_id=reservation.warehouse_id,
-                product_id=reservation.product_id,
-                order_id=order_id,
-                change_type=ChangeType.RELEASE,
-                quantity=reservation.quantity,
-                before_available=product_stock.available_stock - reservation.quantity,
-                after_available=product_stock.available_stock,
-                before_reserved=product_stock.reserved_stock + reservation.quantity,
-                after_reserved=product_stock.reserved_stock,
-                before_frozen=product_stock.frozen_stock,
-                after_frozen=product_stock.frozen_stock,
-                operator=f"order_service_{order_id}",
-                source="order_service"
+            ).scalars().all()
+                
+            if not reservations:
+                raise HTTPException(status_code=404, detail="未找到有效的预占记录")
+                
+            # 2. 对每个商品执行 Redis 释放
+            for reservation in reservations:
+                if not self.cache_service:
+                    raise HTTPException(status_code=500, detail="缓存服务未初始化")
+                    
+                new_stock, is_not_found = self.cache_service.atomic_release_stock(
+                    warehouse_id=reservation.warehouse_id,
+                    product_id=reservation.product_id,
+                    quantity=reservation.quantity,
+                    order_id=order_id
+                )
+                    
+                if is_not_found:
+                    logger.warning(f"Redis 中预占记录不存在：order={order_id}")
+                    # 继续处理，因为可能已经在 Redis 中释放了
+                    
+                after_stock = new_stock
+                before_stock = new_stock - reservation.quantity
+                    
+                logger.info(f"✅ Redis 释放成功：order={order_id}, stock={before_stock}→{after_stock}")
+                    
+                # 3. 异步写入数据库（使用独立连接）
+                try:
+                    loop = asyncio.get_running_loop()
+                        
+                    async def sync_to_db():
+                        from app.db.session import SessionLocal
+                        db_session = SessionLocal()  # 创建独立的数据库连接
+                        try:
+                            sync_service = InventorySyncService(db_session)
+                            success = sync_service.sync_release_to_db(
+                                warehouse_id=reservation.warehouse_id,
+                                product_id=reservation.product_id,
+                                quantity=reservation.quantity,
+                                order_id=order_id,
+                                new_stock=after_stock
+                            )
+                            if not success:
+                                logger.error(f"数据库同步失败：order={order_id}")
+                        except Exception as e:
+                            logger.error(f"数据库同步异常：{e}")
+                            db_session.rollback()
+                        finally:
+                            db_session.close()
+                        
+                    asyncio.create_task(sync_to_db())
+                    logger.debug(f"已创建异步任务同步数据库：order={order_id}")
+                        
+                except RuntimeError:
+                    import threading
+                    def run_async():
+                        from app.db.session import SessionLocal
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        db_session = SessionLocal()  # 创建独立的数据库连接
+                        try:
+                            sync_service = InventorySyncService(db_session)
+                            success = sync_service.sync_release_to_db(
+                                warehouse_id=reservation.warehouse_id,
+                                product_id=reservation.product_id,
+                                quantity=reservation.quantity,
+                                order_id=order_id,
+                                new_stock=after_stock
+                            )
+                            if not success:
+                                logger.error(f"数据库同步失败：order={order_id}")
+                        except Exception as e:
+                            logger.error(f"数据库同步异常：{e}")
+                            db_session.rollback()
+                        finally:
+                            db_session.close()
+                            new_loop.close()
+                        
+                    _db_sync_executor.submit(run_async)
+                    logger.debug(f"已提交线程池任务同步数据库：order={order_id}")
+                        
+                except Exception as e:
+                    logger.warning(f"异步同步数据库失败（不影响主流程）: {e}")
+                
+            elapsed_ms = (time.time() - start_time) * 1000
+            LoggingAspect.log_operation_success(
+                "release_stock",
+                extra_data={'order_id': order_id, 'elapsed_ms': elapsed_ms}
             )
-            self.db.add(log)
-
-        self.db.commit()
-        LoggingAspect.log_operation_success("release_stock", extra_data={'order_id': order_id})
-
-        # 使用统一的缓存失效切面
-        self.cache_aspect.invalidate_by_order(reservations)
+                
+            # 4. 记录幂等性结果
+            if self.cache_service and hasattr(self.cache_service, 'set_idempotent'):
+                self.cache_service.set_idempotent(
+                    operation="release",
+                    order_id=order_id,
+                    result_data={"success": True},
+                    ttl=86400
+                )
+                
+            return True
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"释放库存失败：{str(e)}")
+            raise
         
         # 记录幂等性结果
         if self.cache_service and hasattr(self.cache_service, 'set_idempotent'):

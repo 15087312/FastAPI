@@ -19,7 +19,8 @@ logger = get_structured_logger(__name__)
 
 # Kafka 配置
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-INVENTORY_TOPIC = "inventory-changes"
+KAFKA_ENABLED = os.getenv("KAFKA_ENABLED", "false").lower() == "true"
+INVENTORY_TOPIC = os.getenv("KAFKA_TOPIC", "inventory-changes")
 
 # ========== 速率限制配置 ==========
 # 每秒最大处理消息数（默认 100 条/秒）

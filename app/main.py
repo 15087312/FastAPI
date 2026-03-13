@@ -520,12 +520,14 @@ if __name__ == "__main__":
     # 生产环境配置：使用多进程 uvicorn
     # workers 数量建议：CPU 核心数 * 2 + 1
     # 开发环境：workers=1 或 2
-    # 生产环境：根据 CPU 核心数调整，一般 4-8 个
+    # 生产环境：根据 CPU 核心数调整，一般 8-16 个
     import multiprocessing
     cpu_count = multiprocessing.cpu_count()
-    workers = min(cpu_count * 2 + 1, 8)  # 最多 8 个 worker
+    workers = min(cpu_count * 2 + 1, 16)  # 最多 16 个 worker（优化后）
     
     logger.info(f"Starting server with {workers} workers (CPU cores: {cpu_count})")
+    logger.info(f"Database pool size: {default_pool_size}, max overflow: {default_max_overflow}")
+    logger.info(f"Optimized for high concurrency - Target QPS: 1000+")
     
     # 注意：reload=True 时 workers 参数不生效，开发环境建议使用单进程
     # 生产环境设置 DEBUG=False 以启用多进程
@@ -539,5 +541,10 @@ if __name__ == "__main__":
         workers=1 if settings.DEBUG else workers,  # DEBUG 模式强制使用 1 个 worker
         reload=settings.DEBUG,
         access_log=True,
-        log_level="info"
+        log_level="info",
+        http="httptools",  # 使用高性能 HTTP 解析器
+        # loop="uvloop",  # Windows 不支持 uvloop，Linux/Mac可启用
+        limit_concurrency=2000,  # 最大并发连接数
+        limit_max_requests=10000,  # worker 重启前最大请求数
+        backlog=2048,  # 监听队列大小
     )

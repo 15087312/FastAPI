@@ -229,10 +229,6 @@ class InventoryStressTester:
                     success, elapsed = await self.mixed_scenario(order_id)
                 
                 results.append((success, elapsed))
-                
-                # 短暂延迟，防止过快
-                if scenario != "query":
-                    await asyncio.sleep(0.01)
             
             return results
         

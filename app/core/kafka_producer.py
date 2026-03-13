@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 # Kafka 配置
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-INVENTORY_TOPIC = "inventory-changes"
+KAFKA_ENABLED = os.getenv("KAFKA_ENABLED", "false").lower() == "true"
+INVENTORY_TOPIC = os.getenv("KAFKA_TOPIC", "inventory-changes")
 
 # 全局生产者实例
 _producer: Optional[AIOKafkaProducer] = None
@@ -76,6 +77,11 @@ async def send_inventory_event(
         after_stock: 变更后库存
         remark: 备注
     """
+    # 如果 Kafka 未启用，直接跳过
+    if not KAFKA_ENABLED:
+        logger.debug("Kafka 未启用，消息已跳过")
+        return
+    
     event = {
         "event_type": event_type,
         "warehouse_id": warehouse_id,
@@ -91,15 +97,13 @@ async def send_inventory_event(
     try:
         producer = await get_kafka_producer()
         if producer:
-            # 使用 order_id 作为消息 key，保证同一订单的消息有序
             key = f"{warehouse_id}:{product_id}:{order_id}"
             await producer.send_and_wait(INVENTORY_TOPIC, event, key=key)
-            logger.info(f"Kafka 消息已发送: {event_type} - {order_id}")
+            logger.info(f"Kafka 消息已发送：{event_type} - {order_id}")
         else:
-            logger.warning("Kafka 生产者未初始化，消息未发送")
+            logger.debug("Kafka 生产者未初始化，消息未发送")
     except Exception as e:
-        # 记录错误但不影响主业务
-        logger.error(f"Kafka 消息发送失败: {e}")
+        logger.warning(f"Kafka 消息发送失败（已忽略）: {e}")
 
 
 # 事件类型常量

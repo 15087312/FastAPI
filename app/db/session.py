@@ -7,30 +7,31 @@ import multiprocessing
 import os
 
 # 计算最优连接池大小
-# 假设 PostgreSQL 默认 max_connections = 100
+# 假设 PostgreSQL 默认 max_connections = 200 (已优化)
 # 根据预估的 worker 数量计算每个 worker 的连接池大小
-# 公式：recommended_pool_size = max(2, max_connections // max_workers)
+# 公式：recommended_pool_size = max(5, max_connections // max_workers)
 # 预留一些连接给管理员和运维工具
 cpu_count = multiprocessing.cpu_count()
-estimated_workers = min(cpu_count * 2 + 1, 8)  # 最多 8 个 worker
-postgresql_max_connections = 100  # PostgreSQL 默认 max_connections
-reserved_connections = 10  # 预留连接给运维工具
+estimated_workers = min(cpu_count * 2 + 1, 16)  # 最多 16 个 worker
+postgresql_max_connections = 200  # PostgreSQL 优化后的 max_connections
+reserved_connections = 20  # 预留连接给运维工具
 available_for_app = postgresql_max_connections - reserved_connections
-recommended_pool_size = max(2, available_for_app // estimated_workers)
+recommended_pool_size = max(5, available_for_app // estimated_workers)
 
 # 从环境变量读取，如果未设置则使用计算出的推荐值
 default_pool_size = int(os.getenv("DB_POOL_SIZE", str(recommended_pool_size)))
-default_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", str(recommended_pool_size * 2)))
+default_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", str(recommended_pool_size * 3)))  # 提高溢出比例
 
 print(f"数据库连接池配置: pool_size={default_pool_size}, max_overflow={default_max_overflow}, estimated_workers={estimated_workers}")
 
 engine = create_engine(
     settings.database_url,
-    pool_size=default_pool_size,      # 连接池大小，默认 20
-    max_overflow=default_max_overflow,  # 最大溢出连接数，默认 40
+    pool_size=default_pool_size,      # 连接池大小，优化后默认更大
+    max_overflow=default_max_overflow,  # 最大溢出连接数，提高并发能力
     pool_pre_ping=True,               # 自动检测失效连接
     pool_recycle=1800,                # 30 分钟回收连接
-    pool_timeout=30,                  # 获取连接超时时间
+    pool_timeout=10,                  # 获取连接超时时间 (降低等待时间)
+    pool_use_lifo=True,               # 使用 LIFO 策略，提高连接复用率
     echo=settings.DEBUG,              # 开发环境开启 SQL 日志
 )
 

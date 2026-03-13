@@ -111,7 +111,7 @@ class InventoryCacheService:
             logger.debug(f"Cache invalidated for warehouse {warehouse_id}, product {product_id}")
 
     def invalidate_caches(self, items: list):
-        """批量失效缓存"""
+        """批量失效缓存（使用管道优化）"""
         if not self.redis:
             return
 
@@ -123,7 +123,11 @@ class InventoryCacheService:
                 keys_to_delete.append(self._get_cache_key(warehouse_id, product_id))
 
         if keys_to_delete:
-            self.redis.delete(*keys_to_delete)
+            # 使用管道批量删除，减少网络往返
+            pipe = self.redis.pipeline()
+            for key in keys_to_delete:
+                pipe.delete(key)
+            pipe.execute()
             logger.debug(f"Batch cache invalidated: {len(keys_to_delete)} keys")
 
     def batch_get_cached_stocks(self, warehouse_id: str, product_ids: list) -> tuple:
@@ -147,15 +151,15 @@ class InventoryCacheService:
         return results, uncached_ids
 
     def batch_set_cached_stocks(self, warehouse_id: str, stock_map: dict, ttl: int = 0):
-        """批量设置缓存的库存"""
+        """批量设置缓存的库存（使用管道优化）"""
         if not self.redis or not stock_map:
             return
 
-        pipe = self.redis.pipeline()
+        pipe = self.redis.pipeline(transaction=False)  # 不使用事务，提升性能
 
         for product_id, available in stock_map.items():
             if ttl > 0:
-                pipe.set(self._get_cache_key(warehouse_id, product_id), available, ex=ttl)
+                pipe.setex(self._get_cache_key(warehouse_id, product_id), ttl, available)
             else:
                 pipe.set(self._get_cache_key(warehouse_id, product_id), available)
             logger.debug(f"Batch cache set for warehouse {warehouse_id}, product {product_id}: {available}")

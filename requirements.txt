@@ -1,6 +1,7 @@
-# Web框架
+# Web 框架
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
+httptools>=0.6.0  # 高性能 HTTP 解析器（Linux/Mac 可安装 uvloop）
 
 # 数据库相关
 sqlalchemy>=2.0.0

@@ -23,8 +23,9 @@ router = APIRouter(tags=["库存管理"])
     description="""查询指定商品的库存信息。
     
     **缓存策略：**
-    - 首先查询 Redis 缓存
-    - 缓存未命中则查询数据库
+    - 首先查询本地内存缓存（零延迟）
+    - 未命中则查询 Redis
+    - 再未命中查询数据库并回写缓存
     - 查询结果缓存 5 分钟
     
     **多仓支持：**
@@ -71,6 +72,14 @@ async def get_stock(
     """查询商品库存（支持多仓库）"""
     try:
         service = InventoryService(db, redis)
+        # 调试：检查缓存服务是否有本地缓存
+        if hasattr(service.cache_service, '_local_cache'):
+            cache_key = f"stock:full:{warehouse_id}:{product_id}"
+            if cache_key in service.cache_service._local_cache:
+                logger.debug(f"✅ 本地缓存命中：{cache_key}")
+            else:
+                logger.debug(f"❌ 本地缓存未命中：{cache_key}，将查询 Redis")
+        
         stock_info = service.get_full_stock_info(warehouse_id, product_id)
         if not stock_info:
             return StockResponse(

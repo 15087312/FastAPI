@@ -119,6 +119,15 @@ async def lifespan(app: FastAPI):
                 sync_service = InventorySyncService(db, redis_client)
                 count = sync_service.load_all_to_redis()
                 logger.info(f"✅ 启动时已加载 {count} 条库存记录到 Redis")
+                
+                # 预热本地缓存（从 Redis 加载到应用内存）
+                from app.services.inventory_cache import InventoryCacheService
+                cache_service = InventoryCacheService(redis_client)
+                if hasattr(cache_service, '_local_cache'):
+                    # 触发一次查询，让数据加载到本地缓存
+                    for i in range(min(10, count)):  # 预热前 10 个商品
+                        cache_service.get_cached_stock("WH001", 980 - i)
+                    logger.info(f"✅ 本地缓存已预热")
             except Exception as e:
                 logger.warning(f"加载库存到 Redis 失败：{e}")
             finally:
@@ -512,7 +521,6 @@ if __name__ == "__main__":
     workers = min(cpu_count * 2 + 1, 16)  # 最多 16 个 worker（优化后）
     
     logger.info(f"Starting server with {workers} workers (CPU cores: {cpu_count})")
-    logger.info(f"Database pool size: {default_pool_size}, max overflow: {default_max_overflow}")
     from app.core.redis import REDIS_POOL_SIZE, REDIS_POOL_MAX_OVERFLOW
     logger.info(f"Redis pool size: {REDIS_POOL_SIZE}, max overflow: {REDIS_POOL_MAX_OVERFLOW}")
     logger.info(f"Optimized for high concurrency - Target QPS: 1000+")

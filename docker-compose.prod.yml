@@ -113,6 +113,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
     volumes: []
       # - ./app:/app/app  # 生产环境：使用镜像中的代码，不挂载
     networks:
@@ -122,6 +124,7 @@ services:
              python app/main.py"
 
   # pgAdmin (可选的数据库管理工具)
+  # 注意：pgadmin 不会随 app 自动启动，需要手动执行 docker-compose up -d pgadmin
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: fastapi_pgadmin
@@ -136,6 +139,45 @@ services:
       - fastapi_network
     depends_on:
       - db
+
+  # Celery Worker (异步任务处理)
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: fastapi_celery_worker
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      # 数据库配置
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=123456
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=mydb
+      # Redis 配置
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      # Kafka 配置
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9094
+      - KAFKA_ENABLED=true
+      # 应用配置
+      - DEBUG=False
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    volumes: []
+    networks:
+      - fastapi_network
+    command: >
+      sh -c "celery -A celery_app worker --loglevel=info --concurrency=4"
 
 volumes:
   postgres_data:

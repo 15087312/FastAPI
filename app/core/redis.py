@@ -33,7 +33,9 @@ from app.core.config import settings
 # Redis 连接池配置（提升高并发性能）
 REDIS_POOL_SIZE = int(os.getenv("REDIS_POOL_SIZE", "50"))  # 连接池大小
 REDIS_POOL_MAX_OVERFLOW = int(os.getenv("REDIS_POOL_MAX_OVERFLOW", "100"))  # 最大溢出连接
-REDIS_POOL_TIMEOUT = int(os.getenv("REDIS_POOL_TIMEOUT", "10"))  # 获取连接超时
+REDIS_POOL_TIMEOUT = int(os.getenv("REDIS_POOL_TIMEOUT", "5"))  # 获取连接超时
+REDIS_SOCKET_TIMEOUT = float(os.getenv("REDIS_SOCKET_TIMEOUT", "5.0"))  # Socket 超时（秒）
+REDIS_SOCKET_CONNECT_TIMEOUT = float(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "2.0"))  # 连接超时
 
 # 构建 Redis URL（支持密码）
 if settings.REDIS_PASSWORD:
@@ -41,13 +43,15 @@ if settings.REDIS_PASSWORD:
 else:
     REDIS_URL = f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
 
-# 创建连接池
+# 创建连接池（优化网络参数）
 redis_connection_pool = redis.ConnectionPool.from_url(
     REDIS_URL,
     decode_responses=True,
     max_connections=REDIS_POOL_SIZE,
-    socket_timeout=REDIS_POOL_TIMEOUT,
-    socket_connect_timeout=REDIS_POOL_TIMEOUT,
+    socket_timeout=REDIS_SOCKET_TIMEOUT,  # 降低默认超时，加快失败检测
+    socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT,
+    socket_keepalive=True,  # 启用 TCP keepalive，减少重连开销
+    retry_on_timeout=False,  # 超时时不重试，直接报错（避免长时间阻塞）
 )
 
 # 基础 Redis 客户端（使用连接池）

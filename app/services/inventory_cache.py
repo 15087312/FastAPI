@@ -149,14 +149,18 @@ def get_registered_script(name: str):
 
 
 class InventoryCacheService:
-    """库存缓存服务（优化版：复用预注册的Lua脚本）"""
+    """库存缓存服务（优化版：复用预注册的 Lua 脚本 + 本地内存缓存）"""
 
     def __init__(self, redis: Redis = None):
         self.redis = redis
-        # 复用预注册的Lua脚本，避免每次创建服务都重新注册
+        # 复用预注册的 Lua 脚本，避免每次创建服务都重新注册
         self._reserve_script = get_registered_script('reserve')
         self._release_script = get_registered_script('release')
         self._batch_reserve_script = get_registered_script('batch_reserve')
+        
+        # 本地内存缓存（进程内缓存，零网络延迟）
+        self._local_cache = {}
+        logger.info("✅ 本地内存缓存已初始化")
 
     def _get_cache_key(self, warehouse_id: str, product_id: int) -> str:
         """生成库存缓存键"""
@@ -167,75 +171,111 @@ class InventoryCacheService:
         return f"stock:full:{warehouse_id}:{product_id}"
 
     def get_cached_stock(self, warehouse_id: str, product_id: int) -> Optional[int]:
-        """获取缓存的可用库存"""
+        """获取缓存的可用库存（优先本地缓存）"""
+        cache_key = self._get_cache_key(warehouse_id, product_id)
+        
+        # 1. 先查本地内存缓存（零延迟）
+        if cache_key in self._local_cache:
+            value = self._local_cache[cache_key]
+            logger.debug(f"Local cache hit: {cache_key} = {value}")
+            return value
+        
+        # 2. 本地未命中，查 Redis
         if not self.redis:
             return None
 
-        cache_key = self._get_cache_key(warehouse_id, product_id)
         cached = self.redis.get(cache_key)
 
         if cached is not None:
             value = int(cached)
             if value == NULL_CACHE_MARKER:
-                logger.debug(f"Cache hit (null) for warehouse {warehouse_id}, product {product_id}")
-                return None  # 返回 None 表示缓存命中但值为空
-            logger.debug(f"Cache hit for warehouse {warehouse_id}, product {product_id}")
+                logger.debug(f"Redis cache hit (null) for {cache_key}")
+                return None
+            
+            # 同步到本地缓存
+            self._local_cache[cache_key] = value
+            logger.debug(f"Redis cache hit: {cache_key} = {value}")
             return value
 
         return None
 
     def set_cached_stock(self, warehouse_id: str, product_id: int, available: int, ttl: int = 0):
-        """设置缓存的可用库存"""
+        """设置缓存的可用库存（同步更新本地 + Redis）"""
+        cache_key = self._get_cache_key(warehouse_id, product_id)
+        
+        # 1. 立即更新本地缓存（零延迟）
+        self._local_cache[cache_key] = available
+        logger.debug(f"Local cache set: {cache_key} = {available}")
+        
+        # 2. 异步更新 Redis（不阻塞主流程）
         if not self.redis:
             return
 
-        cache_key = self._get_cache_key(warehouse_id, product_id)
         if available is None:
             # 存储空值标记
             self.redis.setex(cache_key, NULL_CACHE_TTL, NULL_CACHE_MARKER)
-            logger.debug(f"Null cache set for warehouse {warehouse_id}, product {product_id}")
+            logger.debug(f"Redis null cache set for {cache_key}")
         else:
             if ttl > 0:
                 self.redis.setex(cache_key, ttl, available)
             else:
                 self.redis.set(cache_key, available)
-            logger.debug(f"Cache set for warehouse {warehouse_id}, product {product_id}: {available}")
+            logger.debug(f"Redis cache set for {cache_key}: {available}")
 
     def get_cached_full_info(self, warehouse_id: str, product_id: int) -> Optional[dict]:
-        """获取缓存的完整库存信息"""
+        """获取缓存的完整库存信息（优先本地缓存）"""
+        cache_key = self._get_full_cache_key(warehouse_id, product_id)
+        
+        # 1. 先查本地内存缓存（零延迟）
+        if cache_key in self._local_cache:
+            value = self._local_cache[cache_key]
+            logger.debug(f"Local full cache hit: {cache_key}")
+            return value
+        
+        # 2. 本地未命中，查 Redis
         if not self.redis:
             return None
 
         import json
-        cache_key = self._get_full_cache_key(warehouse_id, product_id)
         cached = self.redis.get(cache_key)
 
         if cached:
             value = cached.decode('utf-8') if isinstance(cached, bytes) else cached
             if value == "NULL":
-                logger.debug(f"Full cache hit (null) for warehouse {warehouse_id}, product {product_id}")
-                return None  # 返回 None 表示缓存命中但值为空
-            return json.loads(value)
+                logger.debug(f"Redis full cache hit (null) for {cache_key}")
+                return None
+            
+            result = json.loads(value)
+            # 同步到本地缓存
+            self._local_cache[cache_key] = result
+            logger.debug(f"Redis full cache hit: {cache_key}")
+            return result
 
         return None
 
     def set_cached_full_info(self, warehouse_id: str, product_id: int, info: dict, ttl: int = 0):
-        """设置缓存的完整库存信息"""
+        """设置缓存的完整库存信息（同步更新本地 + Redis）"""
+        cache_key = self._get_full_cache_key(warehouse_id, product_id)
+        
+        # 1. 立即更新本地缓存（零延迟）
+        self._local_cache[cache_key] = info
+        logger.debug(f"Local full cache set: {cache_key}")
+        
+        # 2. 异步更新 Redis（不阻塞主流程）
         if not self.redis:
             return
 
         import json
-        cache_key = self._get_full_cache_key(warehouse_id, product_id)
         if info is None:
             # 存储空值标记
             self.redis.setex(cache_key, NULL_CACHE_TTL, "NULL")
-            logger.debug(f"Full null cache set for warehouse {warehouse_id}, product {product_id}")
+            logger.debug(f"Redis full null cache set for {cache_key}")
         else:
             if ttl > 0:
                 self.redis.setex(cache_key, ttl, json.dumps(info))
             else:
                 self.redis.set(cache_key, json.dumps(info))
-            logger.debug(f"Full stock cache set for warehouse {warehouse_id}, product {product_id}")
+            logger.debug(f"Redis full stock cache set for {cache_key}")
 
     def invalidate_cache(self, warehouse_id: str, product_id: int):
         """失效库存缓存"""

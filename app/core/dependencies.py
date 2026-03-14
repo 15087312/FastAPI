@@ -1,16 +1,12 @@
-"""依赖注入配置模块"""
+"""依赖注入配置模块 - Redis 优先架构"""
 
-from typing import Generator
 from fastapi import Depends
 
-# 数据库会话依赖
-from app.db.session import SessionLocal
-from sqlalchemy.orm import Session
-
 # Redis 依赖
-from app.core.redis import redis_client,  async_redis
+from app.core.redis import redis_client, async_redis
 
-from app.services.inventory_service import InventoryService
+# 数据库依赖（仅用于日志查询、历史记录等特定场景）
+from app.db.session import SessionLocal
 
 
 def get_redis():
@@ -22,26 +18,14 @@ def get_async_redis():
     return async_redis
 
 
-
-def get_db() -> Session:
-    """获取数据库会话"""
+def get_db():
+    """获取数据库会话（仅用于日志查询等特定场景）
+    
+    注意：正常的库存查询和操作已迁移到纯 Redis 架构，
+    此数据库会话仅用于日志查询、历史记录等审计功能。
+    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
-def get_inventory_service(
-    db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-) -> InventoryService:
-    """获取库存服务实例（依赖注入）"""
-    return InventoryService(db=db, redis=redis)
-
-
-# 常用的依赖注入别名
-DatabaseDep = Depends(get_db)
-RedisDep = Depends(get_redis)
-AsyncRedisDep = Depends(get_async_redis)
-InventoryServiceDep = Depends(get_inventory_service)

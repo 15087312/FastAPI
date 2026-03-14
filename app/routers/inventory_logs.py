@@ -1,13 +1,18 @@
-"""库存流水与清理 API 路由"""
+"""库存流水与清理 API 路由
+
+注意：日志查询仍需访问数据库，因为这是审计历史记录。
+正常的库存查询和操作已完全迁移到纯 Redis 架构。
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from datetime import datetime as dt
 from typing import Optional
 import logging
 
 from app.core.dependencies import get_db, get_redis
-from app.services.inventory_service import InventoryService
+from app.models.inventory_logs import InventoryLog
 from app.schemas.inventory_api import (
     PaginatedLogsResponse,
     InventoryLogDetail,
@@ -84,27 +89,40 @@ async def get_inventory_logs(
     end_date: Optional[str] = Query(None, description="结束时间 (ISO 格式)"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页数量"),
-    db: Session = Depends(get_db),
-    redis = Depends(get_redis)
+    db: Session = Depends(get_db)
 ):
-    """查询库存流水日志"""
+    """查询库存流水日志（直接查数据库）"""
     try:
-        start_dt = dt.fromisoformat(start_date) if start_date else None
-        end_dt = dt.fromisoformat(end_date) if end_date else None
-
-        service = InventoryService(db, redis)
-        result = service.get_inventory_logs(
-            warehouse_id=warehouse_id,
-            product_id=product_id,
-            order_id=order_id,
-            change_type=change_type,
-            start_date=start_dt,
-            end_date=end_dt,
-            page=page,
-            page_size=page_size
-        )
-
-        logs = [
+        # 构建查询
+        query = db.query(InventoryLog)
+        
+        # 应用筛选条件
+        if warehouse_id:
+            query = query.filter(InventoryLog.warehouse_id == warehouse_id)
+        if product_id:
+            query = query.filter(InventoryLog.product_id == product_id)
+        if order_id:
+            query = query.filter(InventoryLog.order_id == order_id)
+        if change_type:
+            query = query.filter(InventoryLog.change_type == change_type)
+        if start_date:
+            start_dt = dt.fromisoformat(start_date)
+            query = query.filter(InventoryLog.created_at >= start_dt)
+        if end_date:
+            end_dt = dt.fromisoformat(end_date)
+            query = query.filter(InventoryLog.created_at <= end_dt)
+        
+        # 获取总数
+        total = query.count()
+        
+        # 分页查询
+        logs = query.order_by(desc(InventoryLog.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+        
+        # 计算总页数
+        total_pages = (total + page_size - 1) // page_size
+        
+        # 转换为响应模型
+        log_details = [
             InventoryLogDetail(
                 id=log.id,
                 warehouse_id=log.warehouse_id,
@@ -123,16 +141,16 @@ async def get_inventory_logs(
                 operator=log.operator,
                 source=log.source
             )
-            for log in result["data"]
+            for log in logs
         ]
 
         return PaginatedLogsResponse(
             success=True,
-            data=logs,
-            total=result["total"],
-            page=result["page"],
-            page_size=result["page_size"],
-            total_pages=result["total_pages"]
+            data=log_details,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
         )
     except HTTPException:
         raise
@@ -144,13 +162,27 @@ async def get_inventory_logs(
 @router.post("/cleanup/manual")
 async def manual_cleanup(
     batch_size: int = 500,
-    db: Session = Depends(get_db),
-    redis = Depends(get_redis)
+    db: Session = Depends(get_db)
 ):
-    """手动触发清理任务（方式二：API 直接调用 Service）"""
+    """手动触发清理任务（直接操作数据库）"""
     try:
-        service = InventoryService(db, redis)
-        count = service.cleanup_expired_reservations(batch_size)
+        from app.models.inventory_reservations import InventoryReservation, ReservationStatus
+        from datetime import datetime, timedelta
+        
+        # 查找过期的预占记录
+        expired_threshold = datetime.utcnow() - timedelta(seconds=900)  # 15分钟
+        
+        expired_reservations = db.query(InventoryReservation).filter(
+            InventoryReservation.status == ReservationStatus.RESERVED,
+            InventoryReservation.expired_at < expired_threshold
+        ).limit(batch_size).all()
+        
+        count = 0
+        for res in expired_reservations:
+            # 释放预占
+            res.status = ReservationStatus.EXPIRED
+            count += 1
+        
         db.commit()
         return {
             "success": True, 

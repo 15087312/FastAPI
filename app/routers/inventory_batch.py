@@ -1,10 +1,9 @@
-"""批量操作 API 路由"""
+"""批量操作 API 路由 - 纯 Redis 操作"""
 
 from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis
+from app.core.dependencies import get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     BatchReserveResponse,
@@ -20,16 +19,12 @@ router = APIRouter(tags=["库存管理"])
     "/reserve-batch",
     response_model=BatchReserveResponse,
     summary="批量预占库存",
-    description="""批量预占多个商品库存，保证事务一致性。
+    description="""批量预占多个商品库存，保证原子性。
     
     **特点：**
-    - 全部成功或全部回滚
-    - 支持多仓库
-    - 使用分布式锁防止并发
-    
-    **限制：**
-    - 单次最多 100 个商品
-    - 预占有效期 15 分钟
+    - Redis Lua 脚本保证原子性
+    - 全部成功或全部失败
+    - Kafka 异步同步数据库
     """,
     responses={
         200: {
@@ -65,12 +60,11 @@ router = APIRouter(tags=["库存管理"])
 )
 async def batch_reserve_stock(
     request: BatchReserveRequest = Body(..., description="批量预占请求"),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """批量预占库存接口"""
+    """批量预占库存接口 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         items = [
             {"warehouse_id": item.warehouse_id, "product_id": item.product_id, "quantity": item.quantity}
             for item in request.items
@@ -96,10 +90,6 @@ async def batch_reserve_stock(
     **使用场景：**
     - 整单取消
     - 整单退货
-    
-    **特点：**
-    - 一次性释放订单所有商品
-    - 批量操作性能优化
     """,
     responses={
         200: {
@@ -119,12 +109,11 @@ async def batch_reserve_stock(
 )
 async def batch_release_stock(
     request: BatchReleaseRequest = Body(..., description="批量释放请求"),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """批量释放预占库存接口"""
+    """批量释放预占库存接口 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         count = service.release_stock(request.order_id)
         return {
             "success": True,

@@ -80,9 +80,20 @@ class InventoryStressTester:
         self.should_stop = False
         
     async def init_session(self):
-        """初始化 HTTP 会话"""
-        timeout = aiohttp.ClientTimeout(total=30)
-        self.session = aiohttp.ClientSession(timeout=timeout)
+        """初始化 HTTP 会话 - 使用连接池优化"""
+        timeout = aiohttp.ClientTimeout(total=30, sock_connect=5, sock_read=10)
+        connector = aiohttp.TCPConnector(
+            limit=1000,  # 增加连接池大小
+            limit_per_host=100,  # 每个主机的连接数
+            ttl_dns_cache=300,  # DNS 缓存
+            use_dns_cache=True,  # 启用 DNS 缓存
+            force_close=False,  # 不强制关闭连接
+            enable_cleanup_closed=True,  # 清理关闭的连接
+        )
+        self.session = aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+        )
         
     async def close_session(self):
         """关闭 HTTP 会话"""
@@ -201,11 +212,17 @@ class InventoryStressTester:
             return False, elapsed
     
     async def simple_query_scenario(self) -> Tuple[bool, float]:
-        """简单场景：只查询库存（测试缓存性能）"""
+        """简单场景：只查询库存（测试缓存性能）- 最小化开销"""
         start_time = time.time()
         try:
-            success, elapsed = await self.query_stock(self.test_data["product_id"])
-            return success, elapsed
+            # 直接使用 URL，避免额外的参数处理
+            url = f"{self.base_url}/api/v1/inventory/stock/{self.test_data['product_id']}"
+            async with self.session.get(url) as response:
+                elapsed = (time.time() - start_time) * 1000
+                # 确保读取响应体
+                if response.status == 200:
+                    _ = await response.read()
+                return response.status == 200, elapsed
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             return False, elapsed
@@ -361,6 +378,12 @@ class InventoryStressTester:
         system_limit_reached = False
         
         start_time = datetime.now()
+        
+        # 预热：先发送一些请求，让连接池和缓存都热起来
+        print("\n🔥 预热阶段...")
+        for i in range(20):
+            await self.simple_query_scenario()
+        print("   ✅ 预热完成，连接池已建立")
         
         for concurrency, requests_per_worker, scenario in test_configs:
             print(f"\n{'='*80}")

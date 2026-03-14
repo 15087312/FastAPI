@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
     # 初始化测试数据
     check_and_init_data()
         
-    # 加载商品 ID 到布隆过滤器（在所有 worker 中都要执行）
+    # 加载商品 ID 到布隆过滤器
     try:
         from app.services.bloom_filter import product_bloom_filter
         from app.db.session import SessionLocal
@@ -94,13 +94,13 @@ async def lifespan(app: FastAPI):
             
         db = SessionLocal()
         try:
-            # 从数据库查询所有商品 ID（不依赖 init_data，直接查询）
+            # 从数据库查询所有商品 ID
             product_ids = db.query(Product.id).all()
             product_ids = [pid[0] for pid in product_ids]
                 
             if product_ids:
                 count = product_bloom_filter.add_batch(product_ids)
-                logger.info(f"布隆过滤器已加载 {count} 个商品 ID，当前总计：{product_bloom_filter.get_size()}")
+                logger.info(f"布隆过滤器已加载 {count} 个商品 ID")
             else:
                 logger.warning("数据库中没有商品数据，布隆过滤器未加载")
         finally:
@@ -108,30 +108,75 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"布隆过滤器加载失败：{e}")
     
-    # 启动时加载所有库存数据到 Redis（纯缓存模式）
+    # 启动时加载所有库存数据到 Redis（纯缓存模式，数据永不过期）
+    # 使用分布式锁确保只有一个进程执行预热
     try:
-        from app.services.inventory_sync import InventorySyncService
         from app.db.session import SessionLocal
+        from app.services.inventory_cache import InventoryCacheService
+        import json
             
         if redis_client:
-            db = SessionLocal()
-            try:
-                sync_service = InventorySyncService(db, redis_client)
-                count = sync_service.load_all_to_redis()
-                logger.info(f"✅ 启动时已加载 {count} 条库存记录到 Redis")
+            # 尝试获取预热锁（防止多个worker同时预热）
+            lock_acquired = redis_client.set("inventory:warmup:lock", "1", nx=True, ex=300)
+            
+            if lock_acquired:
+                logger.info("获得预热锁，开始加载库存数据...")
                 
-                # 预热本地缓存（从 Redis 加载到应用内存）
-                from app.services.inventory_cache import InventoryCacheService
-                cache_service = InventoryCacheService(redis_client)
-                if hasattr(cache_service, '_local_cache'):
-                    # 触发一次查询，让数据加载到本地缓存
-                    for i in range(min(10, count)):  # 预热前 10 个商品
-                        cache_service.get_cached_stock("WH001", 980 - i)
-                    logger.info(f"✅ 本地缓存已预热")
-            except Exception as e:
-                logger.warning(f"加载库存到 Redis 失败：{e}")
-            finally:
-                db.close()
+                # 检查是否已经有数据（避免重复加载）
+                sample_key = "stock:available:WH001:980"
+                existing_data = redis_client.get(sample_key)
+                
+                if existing_data is None:
+                    db = SessionLocal()
+                    try:
+                        # 查询所有库存记录
+                        from sqlalchemy import select
+                        from app.models.product_stocks import ProductStock
+                        
+                        stmt = select(ProductStock)
+                        stocks = db.execute(stmt).scalars().all()
+                        
+                        count = 0
+                        pipe = redis_client.pipeline(transaction=False)
+                        
+                        for stock in stocks:
+                            # 设置可用库存缓存（永不过期）
+                            cache_key = f"stock:available:{stock.warehouse_id}:{stock.product_id}"
+                            pipe.set(cache_key, stock.available_stock)
+                            
+                            # 设置完整库存信息缓存（永不过期）
+                            full_key = f"stock:full:{stock.warehouse_id}:{stock.product_id}"
+                            full_data = {
+                                "warehouse_id": stock.warehouse_id,
+                                "product_id": stock.product_id,
+                                "available_stock": stock.available_stock,
+                                "reserved_stock": stock.reserved_stock,
+                                "frozen_stock": stock.frozen_stock,
+                                "safety_stock": stock.safety_stock,
+                                "total_stock": stock.available_stock + stock.reserved_stock + stock.frozen_stock
+                            }
+                            pipe.set(full_key, json.dumps(full_data))
+                            count += 1
+                        
+                        pipe.execute()
+                        logger.info(f"✅ 启动时已加载 {count} 条库存记录到 Redis（永不过期）")
+                        
+                    except Exception as e:
+                        logger.warning(f"加载库存到 Redis 失败：{e}")
+                    finally:
+                        db.close()
+                else:
+                    logger.info("Redis 已存在数据，跳过预热")
+            else:
+                logger.info("其他进程正在预热，等待完成...")
+                # 等待其他进程完成预热
+                import time
+                for _ in range(30):  # 最多等待30秒
+                    time.sleep(1)
+                    sample_key = "stock:available:WH001:980"
+                    if redis_client.get(sample_key):
+                        break
+                logger.info("预热完成")
         else:
             logger.warning("Redis 未连接，无法加载库存数据")
     except Exception as e:
@@ -388,10 +433,11 @@ async def health_check():
     checks = {}
     is_healthy = True
     
-    # 1. 数据库连接检查
+    # 1. 数据库连接检查（使用池中已有连接，不创建新连接）
     try:
         from app.db.session import engine
-        with engine.connect() as connection:
+        # 使用 pool.connection() 从池中获取连接，复用连接而不是创建新连接
+        with engine.pool.connection() as connection:
             connection.execute(text("SELECT 1"))
         checks["database"] = "ok"
     except Exception as e:

@@ -32,7 +32,7 @@ from app.core.config import settings
 
 # Redis 连接池配置（提升高并发性能）
 REDIS_POOL_SIZE = int(os.getenv("REDIS_POOL_SIZE", "50"))  # 连接池大小
-REDIS_POOL_MAX_OVERFLOW = int(os.getenv("REDIS_POOL_MAX_OVERFLOW", "100"))  # 最大溢出连接
+REDIS_POOL_MAX_OVERFLOW = int(os.getenv("REDIS_POOL_MAX_OVERFLOW", "50"))  # 最大溢出连接数，限制最大连接总数
 REDIS_POOL_TIMEOUT = int(os.getenv("REDIS_POOL_TIMEOUT", "5"))  # 获取连接超时
 REDIS_SOCKET_TIMEOUT = float(os.getenv("REDIS_SOCKET_TIMEOUT", "5.0"))  # Socket 超时（秒）
 REDIS_SOCKET_CONNECT_TIMEOUT = float(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "2.0"))  # 连接超时
@@ -47,7 +47,7 @@ else:
 redis_connection_pool = redis.ConnectionPool.from_url(
     REDIS_URL,
     decode_responses=True,
-    max_connections=REDIS_POOL_SIZE,
+    max_connections=REDIS_POOL_SIZE + REDIS_POOL_MAX_OVERFLOW,  # 最大总连接数
     socket_timeout=REDIS_SOCKET_TIMEOUT,  # 降低默认超时，加快失败检测
     socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT,
     socket_keepalive=True,  # 启用 TCP keepalive，减少重连开销
@@ -56,7 +56,11 @@ redis_connection_pool = redis.ConnectionPool.from_url(
 
 # 基础 Redis 客户端（使用连接池）
 redis_client = Redis(connection_pool=redis_connection_pool)
-async_redis = AsyncRedis.from_url(REDIS_URL, decode_responses=True, max_connections=REDIS_POOL_SIZE)
+async_redis = AsyncRedis.from_url(
+    REDIS_URL, 
+    decode_responses=True, 
+    max_connections=REDIS_POOL_SIZE + REDIS_POOL_MAX_OVERFLOW  # 最大总连接数
+)
 sync_redis = Redis(connection_pool=redis_connection_pool)
 
 

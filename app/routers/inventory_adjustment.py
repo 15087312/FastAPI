@@ -1,10 +1,9 @@
-"""库存调整 API 路由（入库、调整、冻结）"""
+"""库存调整 API 路由（入库、调整、冻结）- 纯 Redis 操作"""
 
 from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis
+from app.core.dependencies import get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     IncreaseStockResponse,
@@ -26,15 +25,10 @@ router = APIRouter(tags=["库存管理"])
     summary="入库/补货",
     description="""增加商品库存，用于入库、补货等场景。
     
-    **使用场景：**
-    - 采购入库
-    - 退货入库
-    - 调拨入库
-    - 盘点盈亏调整
-    
-    **注意：**
-    - 如果库存记录不存在，会自动创建
-    - 会记录库存变更日志
+    **特点：**
+    - 纯 Redis 操作
+    - Kafka 异步同步数据库
+    - 数据永不过期
     """,
     responses={
         200: {
@@ -57,13 +51,12 @@ router = APIRouter(tags=["库存管理"])
 )
 async def increase_stock(
     request: IncreaseStockRequest = Body(..., description="入库请求"),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 
 ):
-    """入库/补货接口"""
+    """入库/补货接口 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.increase_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,
@@ -95,11 +88,6 @@ async def increase_stock(
     - increase: 增加库存
     - decrease: 减少库存
     - set: 设置为指定值
-    
-    **使用场景：**
-    - 盘点修正
-    - 库存纠错
-    - 人工干预
     """,
     responses={
         200: {
@@ -123,12 +111,11 @@ async def increase_stock(
 )
 async def adjust_stock(
     request: AdjustStockRequest = Body(..., description="调整请求"),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """库存调整接口"""
+    """库存调整接口 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.adjust_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,
@@ -160,10 +147,6 @@ async def adjust_stock(
     - 待检品
     - 待定分配
     - 临时锁定
-    
-    **注意：**
-    - 只能冻结可用库存
-    - 冻结后库存从可用转为冻结状态
     """,
     responses={
         200: {
@@ -185,12 +168,11 @@ async def adjust_stock(
 )
 async def freeze_stock(
     request: FreezeStockRequest = Body(..., description="冻结请求"),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """冻结库存接口"""
+    """冻结库存接口 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.freeze_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,
@@ -241,12 +223,11 @@ async def freeze_stock(
 )
 async def unfreeze_stock(
     request: UnfreezeStockRequest = Body(..., description="解冻请求"),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """解冻库存接口"""
+    """解冻库存接口 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.unfreeze_stock(
             warehouse_id=request.warehouse_id,
             product_id=request.product_id,

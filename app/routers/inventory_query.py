@@ -1,10 +1,9 @@
-"""库存查询 API 路由"""
+"""库存查询 API 路由 - 纯 Redis 查询，零数据库访问"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Path
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, HTTPException, Query, Body, Path, Depends
 import logging
 
-from app.core.dependencies import get_db, get_redis
+from app.core.dependencies import get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import (
     StockResponse,
@@ -66,20 +65,11 @@ async def get_stock(
         description="仓库 ID",
         examples=["WH01"]
     ),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
-                        ):
-    """查询商品库存（支持多仓库）"""
+):
+    """查询商品库存（支持多仓库）- 纯 Redis 查询"""
     try:
-        service = InventoryService(db, redis)
-        # 调试：检查缓存服务是否有本地缓存
-        if hasattr(service.cache_service, '_local_cache'):
-            cache_key = f"stock:full:{warehouse_id}:{product_id}"
-            if cache_key in service.cache_service._local_cache:
-                logger.debug(f"✅ 本地缓存命中：{cache_key}")
-            else:
-                logger.debug(f"❌ 本地缓存未命中：{cache_key}，将查询 Redis")
-        
+        service = InventoryService(redis)
         stock_info = service.get_full_stock_info(warehouse_id, product_id)
         if not stock_info:
             return StockResponse(
@@ -151,12 +141,11 @@ async def batch_get_stocks(
         ..., 
         description="批量查询请求参数"
     ),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """批量查询商品库存（支持多仓库）"""
+    """批量查询商品库存（支持多仓库）- 纯 Redis 查询"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(None, redis)
         stocks = service.batch_get_stocks(warehouse_id, request.product_ids)
         return BatchStockResponse(
             success=True,

@@ -94,12 +94,12 @@ class InventorySyncService:
         try:
             from datetime import datetime, timedelta
             
-            # 1. 检查并获取库存记录
+            # 1. 检查并获取库存记录（不带锁，直接读取）
             stock = self.db.execute(
                 select(ProductStock).where(
                     ProductStock.warehouse_id == warehouse_id,
                     ProductStock.product_id == product_id
-                ).with_for_update()
+                )
             ).scalar_one_or_none()
             
             if not stock:
@@ -182,12 +182,12 @@ class InventorySyncService:
             是否成功
         """
         try:
-            # 1. 获取库存记录
+            # 1. 获取库存记录（不带锁，直接读取）
             stock = self.db.execute(
                 select(ProductStock).where(
                     ProductStock.warehouse_id == warehouse_id,
                     ProductStock.product_id == product_id
-                ).with_for_update()
+                )
             ).scalar_one_or_none()
             
             if not stock:

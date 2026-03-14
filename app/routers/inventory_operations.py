@@ -1,10 +1,9 @@
-"""库存操作 API 路由（预占、确认、释放）"""
+"""库存操作 API 路由（预占、确认、释放）- 纯 Redis 操作"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from sqlalchemy.orm import Session
 import logging
 
-from app.core.dependencies import get_db, get_redis
+from app.core.dependencies import get_redis
 from app.services.inventory_service import InventoryService
 from app.schemas.inventory_api import OperationResponse
 
@@ -19,17 +18,14 @@ router = APIRouter(tags=["库存管理"])
     description="""预占指定商品的库存数量，防止超卖。
     
     **特点：**
-    - 使用数据库行级锁确保原子性
-    - 支持分布式锁防止并发冲突
+    - 使用 Redis Lua 脚本确保原子性
     - 15 分钟后自动过期
     - 幂等性保证
+    - Kafka 异步同步数据库
     
     **使用场景：**
     - 用户下单时预占库存
     - 购物车结算时锁定商品
-    
-    **多仓支持：**
-    - 需要提供 warehouse_id 参数
     """,
     responses={
         200: {
@@ -96,16 +92,15 @@ async def reserve_stock(
         description="订单 ID",
         examples=["ORD202401010001"]
     ),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """预占库存（支持多仓库）"""
-    # 参数合法性校验（在最前面，拒绝非法请求）
+    """预占库存（支持多仓库）- 纯 Redis 操作"""
+    # 参数合法性校验
     from app.core.security import ParameterValidator
     
     validator = ParameterValidator()
     
-    # 1. 校验 product_id 范围：1 ~ 10,000,000
+    # 1. 校验 product_id 范围
     is_valid, error_msg = validator.validate_product_id_range(product_id)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
@@ -115,16 +110,16 @@ async def reserve_stock(
     if product_bloom_filter.is_initialized() and not product_bloom_filter.contains(product_id):
         raise HTTPException(status_code=404, detail="商品不存在")
     
-    # 2. 校验 quantity 范围
+    # 3. 校验 quantity 范围
     if quantity > 10000:
         raise HTTPException(status_code=400, detail="单次预占数量不能超过 10000")
     
-    # 3. 校验 order_id 格式
+    # 4. 校验 order_id 格式
     if not order_id.replace("_", "").replace("-", "").isalnum():
         raise HTTPException(status_code=400, detail="订单ID格式不正确")
     
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.reserve_stock(warehouse_id, product_id, quantity, order_id)
         return {"success": True, "message": "预占成功", "data": result}
     except HTTPException:
@@ -143,10 +138,6 @@ async def reserve_stock(
     **使用场景：**
     - 用户支付成功后确认订单
     - 系统自动确认超时订单
-    
-    **注意：**
-    - 只能确认状态为 RESERVED 的预占记录
-    - 确认后预占状态变为 CONFIRMED
     """,
     responses={
         200: {
@@ -180,12 +171,11 @@ async def confirm_stock(
         description="订单 ID",
         examples=["ORD202401010001"]
     ),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """确认库存扣减（支付成功后调用）"""
+    """确认库存扣减 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.confirm_stock(order_id)
         return {"success": True, "message": "确认成功", "data": result}
     except HTTPException:
@@ -205,11 +195,6 @@ async def confirm_stock(
     - 用户取消订单
     - 订单超时未支付
     - 系统自动释放过期预占
-    
-    **效果：**
-    - 增加可用库存
-    - 减少预占库存
-    - 更新预占状态为 RELEASED
     """,
     responses={
         200: {
@@ -243,12 +228,11 @@ async def release_stock(
         description="订单 ID",
         examples=["ORD202401010001"]
     ),
-    db: Session = Depends(get_db),
     redis = Depends(get_redis)
 ):
-    """释放预占库存（归还给可用库存）"""
+    """释放预占库存 - 纯 Redis 操作"""
     try:
-        service = InventoryService(db, redis)
+        service = InventoryService(redis)
         result = service.release_stock(order_id)
         return {"success": True, "message": "释放成功", "data": result}
     except HTTPException:

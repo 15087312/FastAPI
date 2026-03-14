@@ -1,4 +1,8 @@
-"""Kafka 消费者服务 - 消费库存变更消息并更新数据库"""
+"""Kafka 消费者服务 - 消费库存变更消息并更新数据库
+
+注意：这是唯一允许访问数据库的模块，用于异步批量写入库存变更。
+HTTP 接口不再使用数据库连接池，所有实时操作通过 Redis Lua 脚本完成。
+"""
 
 import os
 import json
@@ -7,8 +11,9 @@ import time
 from typing import Optional
 from aiokafka import AIOKafkaConsumer
 from datetime import datetime
-
-from app.db.session import SessionLocal
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.core.config import settings
 from app.models.product_stocks import ProductStock
 from app.models.inventory_logs import InventoryLog, ChangeType
 from app.models.inventory_reservations import InventoryReservation, ReservationStatus
@@ -21,6 +26,25 @@ logger = get_structured_logger(__name__)
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_ENABLED = os.getenv("KAFKA_ENABLED", "false").lower() == "true"
 INVENTORY_TOPIC = os.getenv("KAFKA_TOPIC", "inventory-changes")
+CONSUMER_GROUP = os.getenv("KAFKA_CONSUMER_GROUP", "inventory-consumer-group")
+
+# ========== Kafka 消费者专用的数据库连接池 ==========
+# 仅供 Kafka 消费者使用，独立于 HTTP 接口
+print("初始化 Kafka 消费者专用数据库连接池...")
+kafka_db_engine = create_engine(
+    settings.database_url,
+    pool_size=10,        # Kafka 消费者专用连接池大小
+    max_overflow=20,     # 最大溢出连接
+    pool_pre_ping=True,  # 自动检测失效连接
+    pool_recycle=1800,   # 30 分钟回收连接
+)
+KafkaSessionLocal = sessionmaker(
+    bind=kafka_db_engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+)
+print(f"✅ Kafka 消费者数据库连接池已初始化：pool_size=10, max_overflow=20")
 
 # ========== 速率限制配置 ==========
 # 每秒最大处理消息数（默认 100 条/秒）
@@ -323,7 +347,7 @@ async def process_inventory_event(event: dict):
     after_stock = event.get("after_stock", 0)
     
     # 幂等性检查：防止消息重复消费
-    db = SessionLocal()
+    db = KafkaSessionLocal()  # 使用 Kafka 消费者专用的数据库会话
     redis_client = None
     cache_service = None
     
@@ -372,15 +396,15 @@ async def process_inventory_event(event: dict):
 
 
 async def _handle_reserve(db, cache_service, warehouse_id, product_id, quantity, order_id, before_stock, after_stock):
-    """处理预占事件（带行级锁）+ Redis 同步"""
+    """处理预占事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁防止并发问题
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:
@@ -416,15 +440,15 @@ async def _handle_reserve(db, cache_service, warehouse_id, product_id, quantity,
 
 
 async def _handle_confirm(db, cache_service, warehouse_id, product_id, quantity, order_id):
-    """处理确认事件（带行级锁）+ Redis 同步"""
+    """处理确认事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:
@@ -464,15 +488,15 @@ async def _handle_confirm(db, cache_service, warehouse_id, product_id, quantity,
 
 
 async def _handle_release(db, cache_service, warehouse_id, product_id, quantity, order_id):
-    """处理释放事件（带行级锁）+ Redis 同步"""
+    """处理释放事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:
@@ -513,15 +537,15 @@ async def _handle_release(db, cache_service, warehouse_id, product_id, quantity,
 
 
 async def _handle_increase(db, cache_service, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理入库事件（带行级锁）+ Redis 同步"""
+    """处理入库事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:
@@ -552,15 +576,15 @@ async def _handle_increase(db, cache_service, warehouse_id, product_id, quantity
 
 
 async def _handle_decrease(db, cache_service, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理出库事件（带行级锁）+ Redis 同步"""
+    """处理出库事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:
@@ -591,15 +615,15 @@ async def _handle_decrease(db, cache_service, warehouse_id, product_id, quantity
 
 
 async def _handle_freeze(db, cache_service, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理冻结事件（带行级锁）+ Redis 同步"""
+    """处理冻结事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:
@@ -631,15 +655,15 @@ async def _handle_freeze(db, cache_service, warehouse_id, product_id, quantity, 
 
 
 async def _handle_unfreeze(db, cache_service, warehouse_id, product_id, quantity, before_stock, after_stock):
-    """处理解冻事件（带行级锁）+ Redis 同步"""
+    """处理解冻事件（无锁，直接写入）+ Redis 同步"""
     from sqlalchemy import select
     
-    # 使用行级锁
+    # 直接读取库存记录（不带锁）
     stock = db.execute(
         select(ProductStock).where(
             ProductStock.warehouse_id == warehouse_id,
             ProductStock.product_id == product_id
-        ).with_for_update()
+        )
     ).scalar_one_or_none()
     
     if stock:

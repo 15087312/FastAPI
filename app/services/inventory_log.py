@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class InventoryLogService:
     """库存日志服务
     
-    使用数据库行级锁 (SELECT FOR UPDATE) 保证并发安全
+    Redis 是主库存，数据库只做对账和审计。
     """
 
     def __init__(
@@ -85,14 +85,16 @@ class InventoryLogService:
         }
 
     def cleanup_expired_reservations(self, batch_size: int = 500) -> int:
-        """清理过期的库存预占记录
+        """清理过期的库存预占记录（对账操作）
         
-        使用数据库行级锁 (SELECT FOR UPDATE skip_locked=True) 保证并发安全
+        注意：Redis 是主库存，数据库只做对账和审计。
+        此方法仅用于修复 Redis 和数据库的不一致。
         """
         total_cleaned = 0
 
         while True:
             try:
+                # 查询过期预占记录（不带锁，直接读取）
                 expired_reservations = self.db.execute(
                     select(InventoryReservation)
                     .where(
@@ -100,49 +102,63 @@ class InventoryLogService:
                         InventoryReservation.expired_at <= datetime.utcnow()
                     )
                     .limit(batch_size)
-                    .with_for_update(skip_locked=True)
                 ).scalars().all()
 
                 if not expired_reservations:
                     break
 
-                logger.info(f"本次清理 {len(expired_reservations)} 条过期预占记录")
+                logger.info(f"发现 {len(expired_reservations)} 条过期预占记录")
                 
                 for reservation in expired_reservations:
                     try:
+                        # 检查 Redis 中是否已释放（以 Redis 为准）
+                        if self.cache_service:
+                            reservation_set = self.cache_service.redis.smembers(
+                                f'reservation:{reservation.warehouse_id}:{reservation.product_id}'
+                            )
+                            if reservation.order_id not in reservation_set:
+                                # Redis 中已释放，更新数据库状态
+                                reservation.status = ReservationStatus.RELEASED
+                                logger.debug(f"Redis 已释放，同步数据库：{reservation.order_id}")
+                                continue
+                        
+                        # 如果 Redis 中还存在，说明需要释放
+                        # 获取库存记录（不带锁）
                         product_stock = self.db.execute(
                             select(ProductStock)
                             .where(
                                 ProductStock.warehouse_id == reservation.warehouse_id,
                                 ProductStock.product_id == reservation.product_id
                             )
-                            .with_for_update()
                         ).scalar_one_or_none()
                 
                         if product_stock:
+                            # 归还库存
                             product_stock.available_stock += reservation.quantity
                             product_stock.reserved_stock -= reservation.quantity
-                
-                        reservation.status = ReservationStatus.RELEASED
-                
-                        if product_stock:
-                            log = InventoryLog(
-                                warehouse_id=reservation.warehouse_id,
-                                product_id=reservation.product_id,
-                                order_id=reservation.order_id,
-                                change_type=ChangeType.RELEASE,
-                                quantity=reservation.quantity,
-                                before_available=product_stock.available_stock - reservation.quantity,
-                                after_available=product_stock.available_stock,
-                                before_reserved=product_stock.reserved_stock + reservation.quantity,
-                                after_reserved=product_stock.reserved_stock,
-                                before_frozen=product_stock.frozen_stock,
-                                after_frozen=product_stock.frozen_stock,
-                                operator="system_cleanup",
-                                source="cleanup_job"
-                            )
-                            self.db.add(log)
-                
+                        
+                            # 更新预占状态
+                            reservation.status = ReservationStatus.RELEASED
+                        
+                            # 记录日志
+                            if product_stock:
+                                log = InventoryLog(
+                                    warehouse_id=reservation.warehouse_id,
+                                    product_id=reservation.product_id,
+                                    order_id=reservation.order_id,
+                                    change_type=ChangeType.RELEASE,
+                                    quantity=reservation.quantity,
+                                    before_available=product_stock.available_stock - reservation.quantity,
+                                    after_available=product_stock.available_stock,
+                                    before_reserved=product_stock.reserved_stock + reservation.quantity,
+                                    after_reserved=product_stock.reserved_stock,
+                                    before_frozen=product_stock.frozen_stock,
+                                    after_frozen=product_stock.frozen_stock,
+                                    operator="system_cleanup",
+                                    source="cleanup_job"
+                                )
+                                self.db.add(log)
+                        
                         total_cleaned += 1
                 
                     except Exception as e:
@@ -151,9 +167,6 @@ class InventoryLogService:
                 
                 self.db.commit()
                 
-                # 使用统一的缓存失效切面
-                self.cache_aspect.invalidate_by_order(expired_reservations)
-
                 logger.info(f"已完成批次清理，累计清理 {total_cleaned} 条记录")
 
                 if len(expired_reservations) < batch_size:

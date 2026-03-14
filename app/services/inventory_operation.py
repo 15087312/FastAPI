@@ -1,41 +1,48 @@
-"""库存操作服务"""
+"""库存操作服务 - 纯Redis操作，Kafka异步同步数据库"""
 
 from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-from typing import Dict, Optional, Any
+from typing import Dict, Any, Optional
 import logging
 
-from app.models.product_stocks import ProductStock
-from app.models.inventory_logs import InventoryLog, ChangeType
 from app.services.inventory_cache import InventoryCacheService
 from app.services.inventory_query import InventoryQueryService
-from app.core.aspects import (
-    CacheInvalidationAspect,
-    LoggingAspect
-)
+from app.core.kafka_producer import send_inventory_event, InventoryEventType
 
 logger = logging.getLogger(__name__)
 
 
 class InventoryOperationService:
-    """库存操作服务"""
+    """库存操作服务 - 纯Redis操作，Kafka异步同步数据库"""
 
-    def __init__(
-        self,
-        db: Session,
-        cache_service: InventoryCacheService = None
-    ):
-        self.db = db
+    def __init__(self, cache_service: InventoryCacheService = None):
         self.cache_service = cache_service
-        self.query_service = InventoryQueryService(db, cache_service)
-        # 使用统一的缓存失效切面
-        self.cache_aspect = CacheInvalidationAspect(cache_service)
+        self.query_service = InventoryQueryService(cache_service)
 
-
-    def _invalidate_cache(self, warehouse_id: str, product_id: int):
-        """失效缓存（使用统一切面）"""
-        self.cache_aspect.invalidate_single(warehouse_id, product_id)
+    async def _send_kafka_event(
+        self,
+        event_type: str,
+        warehouse_id: str,
+        product_id: int,
+        quantity: int,
+        order_id: str,
+        before_stock: int,
+        after_stock: int,
+        remark: str = None
+    ):
+        """发送Kafka事件"""
+        try:
+            await send_inventory_event(
+                event_type=event_type,
+                warehouse_id=warehouse_id,
+                product_id=product_id,
+                quantity=quantity,
+                order_id=order_id,
+                before_stock=before_stock,
+                after_stock=after_stock,
+                remark=remark
+            )
+        except Exception as e:
+            logger.warning(f"Kafka事件发送失败（不影响主流程）: {e}")
 
     def increase_stock(
         self,
@@ -47,100 +54,68 @@ class InventoryOperationService:
         remark: Optional[str] = None,
         source: str = "manual"
     ) -> Dict[str, Any]:
-        """入库/补货 - Redis 原子操作，异步写入数据库"""
+        """入库/补货 - Redis原子操作，Kafka异步同步数据库"""
         try:
             if not self.cache_service:
                 raise HTTPException(status_code=500, detail="缓存服务未初始化")
             
             # 1. 获取当前库存（从 Redis）
             current_stock = self.cache_service.get_cached_stock(warehouse_id, product_id)
+            
+            # 如果Redis中没有数据，初始化为0
             if current_stock is None:
-                # Redis 中没有，查数据库
-                db_stock = self.query_service._get_or_create_stock(warehouse_id, product_id)
-                current_stock = db_stock.available_stock
-                # 写入 Redis
-                self.cache_service.set_cached_stock(warehouse_id, product_id, current_stock)
+                current_stock = 0
+                logger.info(f"Redis中无此商品数据，初始化为0: warehouse={warehouse_id}, product={product_id}")
             
             before_stock = current_stock
             after_stock = current_stock + quantity
             
-            # 2. 更新 Redis 库存
+            # 2. 更新 Redis 库存（永不过期）
             self.cache_service.set_cached_stock(warehouse_id, product_id, after_stock)
+            
+            # 更新完整信息
+            full_info = {
+                "warehouse_id": warehouse_id,
+                "product_id": product_id,
+                "available_stock": after_stock,
+                "reserved_stock": 0,
+                "frozen_stock": 0,
+                "safety_stock": 0,
+                "total_stock": after_stock
+            }
+            self.cache_service.set_cached_full_info(warehouse_id, product_id, full_info)
             
             logger.info(f"✅ Redis 入库成功：stock={before_stock}→{after_stock}")
             
-            # 3. 异步写入数据库（使用独立连接）
+            # 3. 异步发送Kafka事件（不同步写数据库）
             import asyncio
-            from app.services.inventory_sync import InventorySyncService
-            
             try:
                 loop = asyncio.get_running_loop()
-                
-                async def sync_to_db():
-                    from app.db.session import SessionLocal
-                    db_session = SessionLocal()  # 创建独立的数据库连接
-                    try:
-                        sync_service = InventorySyncService(db_session)
-                        success = sync_service.sync_increase_to_db(
-                            warehouse_id=warehouse_id,
-                            product_id=product_id,
-                            quantity=quantity,
-                            new_stock=after_stock,
-                            order_id=order_id,
-                            operator=operator or "system"
-                        )
-                        if not success:
-                            logger.error(f"数据库同步失败：warehouse={warehouse_id}, product={product_id}")
-                    except Exception as e:
-                        logger.error(f"数据库同步异常：{e}")
-                        db_session.rollback()
-                    finally:
-                        db_session.close()
-                
-                asyncio.create_task(sync_to_db())
-                logger.debug(f"已创建异步任务同步数据库：warehouse={warehouse_id}, product={product_id}")
-                
+                loop.create_task(self._send_kafka_event(
+                    event_type=InventoryEventType.INCREASE,
+                    warehouse_id=warehouse_id,
+                    product_id=product_id,
+                    quantity=quantity,
+                    order_id=order_id or f"INCR_{product_id}",
+                    before_stock=before_stock,
+                    after_stock=after_stock,
+                    remark=remark or f"入库: {quantity}"
+                ))
             except RuntimeError:
+                # 没有运行中的loop，在新线程中运行
                 import threading
                 def run_async():
-                    from app.db.session import SessionLocal
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    db_session = SessionLocal()  # 创建独立的数据库连接
-                    try:
-                        sync_service = InventorySyncService(db_session)
-                        success = sync_service.sync_increase_to_db(
-                            warehouse_id=warehouse_id,
-                            product_id=product_id,
-                            quantity=quantity,
-                            new_stock=after_stock,
-                            order_id=order_id,
-                            operator=operator or "system"
-                        )
-                        if not success:
-                            logger.error(f"数据库同步失败")
-                    except Exception as e:
-                        logger.error(f"数据库同步异常：{e}")
-                        db_session.rollback()
-                    finally:
-                        db_session.close()
-                        new_loop.close()
-                
-                thread = threading.Thread(target=run_async, daemon=True)
-                thread.start()
-                logger.debug(f"已创建线程同步数据库")
-                
-            except Exception as e:
-                logger.warning(f"异步同步数据库失败（不影响主流程）: {e}")
-            
-            LoggingAspect.log_operation_success(
-                "increase_stock",
-                extra_data={
-                    'warehouse_id': warehouse_id,
-                    'product_id': product_id,
-                    'quantity': quantity
-                }
-            )
+                    asyncio.run(self._send_kafka_event(
+                        event_type=InventoryEventType.INCREASE,
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=quantity,
+                        order_id=order_id or f"INCR_{product_id}",
+                        before_stock=before_stock,
+                        after_stock=after_stock,
+                        remark=remark or f"入库: {quantity}"
+                    ))
+                threading.Thread(target=run_async, daemon=True).start()
             
             return {
                 "warehouse_id": warehouse_id,
@@ -150,77 +125,99 @@ class InventoryOperationService:
                 "quantity": quantity
             }
 
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"入库失败：{str(e)}")
-            raise
+            raise HTTPException(status_code=500, detail=f"入库失败: {str(e)}")
 
     def adjust_stock(
         self,
         warehouse_id: str,
-       product_id: int,
+        product_id: int,
         adjust_type: str,
         quantity: int,
-       reason: str,
+        reason: str,
         operator: Optional[str] = None,
-       source: str = "manual"
+        source: str = "manual"
     ) -> Dict[str, Any]:
-        """库存调整（增加/减少/设置） - 使用数据库行级锁"""
+        """库存调整（增加/减少/设置）- Redis操作，Kafka异步同步"""
         try:
-            stock = self.query_service._get_or_create_stock(warehouse_id, product_id)
-
-            before_available = stock.available_stock
+            if not self.cache_service:
+                raise HTTPException(status_code=500, detail="缓存服务未初始化")
+            
+            # 1. 获取当前库存（从 Redis）
+            current_stock = self.cache_service.get_cached_stock(warehouse_id, product_id)
+            if current_stock is None:
+                current_stock = 0
+            
+            before_available = current_stock
 
             if adjust_type == "increase":
-                stock.available_stock += quantity
+                after_available = current_stock + quantity
                 change_qty = quantity
             elif adjust_type == "decrease":
-                if stock.available_stock < quantity:
+                if current_stock < quantity:
                     raise HTTPException(status_code=400, detail="库存不足，无法减少")
-                stock.available_stock -= quantity
+                after_available = current_stock - quantity
                 change_qty = -quantity
             elif adjust_type == "set":
-                diff = quantity - stock.available_stock
-                stock.available_stock = quantity
-                change_qty = diff
+                after_available = quantity
+                change_qty = quantity - current_stock
             else:
                 raise HTTPException(status_code=400, detail="无效的调整类型")
 
-            log = InventoryLog(
-                warehouse_id=warehouse_id,
-                product_id=product_id,
-                order_id=None,
-                change_type=ChangeType.ADJUST,
-                quantity=change_qty,
-                before_available=before_available,
-                after_available=stock.available_stock,
-                before_reserved=stock.reserved_stock,
-                after_reserved=stock.reserved_stock,
-                before_frozen=stock.frozen_stock,
-                after_frozen=stock.frozen_stock,
-                remark=reason,
-                operator=operator or "system",
-                source=source
-            )
-            self.db.add(log)
-
-            self.db.commit()
-            LoggingAspect.log_operation_success(
-                "adjust_stock",
-                extra_data={
-                    'warehouse_id': warehouse_id,
-                    'product_id': product_id,
-                    'adjust_type': adjust_type,
-                    'quantity': quantity
-                }
-            )
+            # 2. 更新 Redis 库存
+            self.cache_service.set_cached_stock(warehouse_id, product_id, after_available)
             
-            self._invalidate_cache(warehouse_id, product_id)
+            # 更新完整信息
+            full_info = {
+                "warehouse_id": warehouse_id,
+                "product_id": product_id,
+                "available_stock": after_available,
+                "reserved_stock": 0,
+                "frozen_stock": 0,
+                "safety_stock": 0,
+                "total_stock": after_available
+            }
+            self.cache_service.set_cached_full_info(warehouse_id, product_id, full_info)
+            
+            logger.info(f"✅ Redis 库存调整成功：stock={before_available}→{after_available}, type={adjust_type}")
+            
+            # 3. 异步发送Kafka事件
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._send_kafka_event(
+                    event_type=InventoryEventType.INCREASE if change_qty > 0 else InventoryEventType.DECREASE,
+                    warehouse_id=warehouse_id,
+                    product_id=product_id,
+                    quantity=abs(change_qty),
+                    order_id=f"ADJUST_{product_id}",
+                    before_stock=before_available,
+                    after_stock=after_available,
+                    remark=reason
+                ))
+            except RuntimeError:
+                import threading
+                def run_async():
+                    asyncio.run(self._send_kafka_event(
+                        event_type=InventoryEventType.INCREASE if change_qty > 0 else InventoryEventType.DECREASE,
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=abs(change_qty),
+                        order_id=f"ADJUST_{product_id}",
+                        before_stock=before_available,
+                        after_stock=after_available,
+                        remark=reason
+                    ))
+                threading.Thread(target=run_async, daemon=True).start()
 
             return {
                 "warehouse_id": warehouse_id,
                 "product_id": product_id,
                 "before_available": before_available,
-                "after_available": stock.available_stock,
+                "after_available": after_available,
                 "adjust_type": adjust_type,
                 "quantity": quantity
             }
@@ -228,152 +225,180 @@ class InventoryOperationService:
         except HTTPException:
             raise
         except Exception as e:
-            self.db.rollback()
             logger.error(f"库存调整失败：{str(e)}")
-            raise
+            raise HTTPException(status_code=500, detail=f"库存调整失败: {str(e)}")
 
     def freeze_stock(
         self,
         warehouse_id: str,
-       product_id: int,
+        product_id: int,
         quantity: int,
-       reason: Optional[str] = None,
+        reason: Optional[str] = None,
         operator: Optional[str] = None
     ) -> Dict[str, Any]:
-        """冻结库存 - 使用数据库行级锁"""
+        """冻结库存 - Redis操作，Kafka异步同步"""
         try:
-            stock = self.db.execute(
-                select(ProductStock)
-                .where(
-                    ProductStock.warehouse_id == warehouse_id,
-                    ProductStock.product_id == product_id
-                )
-                .with_for_update()
-            ).scalar_one_or_none()
-
-            if not stock:
-                raise HTTPException(status_code=404, detail="库存记录不存在")
-
-            if stock.available_stock < quantity:
-                raise HTTPException(status_code=400, detail="可用库存不足，无法冻结")
-
-            before_frozen = stock.frozen_stock
-            stock.available_stock -= quantity
-            stock.frozen_stock += quantity
-
-            log = InventoryLog(
-                warehouse_id=warehouse_id,
-                product_id=product_id,
-                order_id=None,
-                change_type=ChangeType.FREEZE,
-                quantity=-quantity,
-                before_available=stock.available_stock + quantity,
-                after_available=stock.available_stock,
-                before_reserved=stock.reserved_stock,
-                after_reserved=stock.reserved_stock,
-                before_frozen=before_frozen,
-                after_frozen=stock.frozen_stock,
-                remark=reason,
-                operator=operator or "system",
-                source="manual"
-            )
-            self.db.add(log)
-
-            self.db.commit()
-            LoggingAspect.log_operation_success(
-                "freeze_stock",
-                extra_data={
-                    'warehouse_id': warehouse_id,
-                    'product_id': product_id,
-                    'quantity': quantity
-                }
-            )
+            if not self.cache_service:
+                raise HTTPException(status_code=500, detail="缓存服务未初始化")
             
-            self._invalidate_cache(warehouse_id, product_id)
-
+            # 1. 获取当前库存（从 Redis）
+            current_stock = self.cache_service.get_cached_stock(warehouse_id, product_id)
+            if current_stock is None:
+                current_stock = 0
+            
+            if current_stock < quantity:
+                raise HTTPException(status_code=400, detail="可用库存不足，无法冻结")
+            
+            before_available = current_stock
+            after_available = current_stock - quantity
+            
+            # 2. 更新 Redis 库存
+            self.cache_service.set_cached_stock(warehouse_id, product_id, after_available)
+            
+            # 更新完整信息
+            full_info = {
+                "warehouse_id": warehouse_id,
+                "product_id": product_id,
+                "available_stock": after_available,
+                "reserved_stock": 0,
+                "frozen_stock": quantity,
+                "safety_stock": 0,
+                "total_stock": current_stock
+            }
+            self.cache_service.set_cached_full_info(warehouse_id, product_id, full_info)
+            
+            logger.info(f"✅ Redis 冻结成功：stock={before_available}→{after_available}, frozen={quantity}")
+            
+            # 3. 异步发送Kafka事件
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._send_kafka_event(
+                    event_type=InventoryEventType.FREEZE,
+                    warehouse_id=warehouse_id,
+                    product_id=product_id,
+                    quantity=quantity,
+                    order_id=f"FREEZE_{product_id}",
+                    before_stock=before_available,
+                    after_stock=after_available,
+                    remark=reason
+                ))
+            except RuntimeError:
+                import threading
+                def run_async():
+                    asyncio.run(self._send_kafka_event(
+                        event_type=InventoryEventType.FREEZE,
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=quantity,
+                        order_id=f"FREEZE_{product_id}",
+                        before_stock=before_available,
+                        after_stock=after_available,
+                        remark=reason
+                    ))
+                threading.Thread(target=run_async, daemon=True).start()
+            
             return {
                 "warehouse_id": warehouse_id,
                 "product_id": product_id,
-                "before_frozen": before_frozen,
-                "after_frozen": stock.frozen_stock
+                "before_available": before_available,
+                "after_available": after_available,
+                "frozen_stock": quantity
             }
 
         except HTTPException:
             raise
         except Exception as e:
-            self.db.rollback()
             logger.error(f"冻结库存失败：{str(e)}")
-            raise
+            raise HTTPException(status_code=500, detail=f"冻结库存失败: {str(e)}")
 
     def unfreeze_stock(
         self,
         warehouse_id: str,
-       product_id: int,
+        product_id: int,
         quantity: int,
-       reason: Optional[str] = None,
+        reason: Optional[str] = None,
         operator: Optional[str] = None
     ) -> Dict[str, Any]:
-        """解冻库存 - 使用数据库行级锁"""
+        """解冻库存 - Redis操作，Kafka异步同步"""
         try:
-            stock = self.db.execute(
-                select(ProductStock)
-                .where(
-                    ProductStock.warehouse_id == warehouse_id,
-                    ProductStock.product_id == product_id
-                )
-                .with_for_update()
-            ).scalar_one_or_none()
-
-            if not stock:
-                raise HTTPException(status_code=404, detail="库存记录不存在")
-
-            if stock.frozen_stock < quantity:
-                raise HTTPException(status_code=400, detail="冻结库存不足，无法解冻")
-
-            before_frozen = stock.frozen_stock
-            stock.frozen_stock -= quantity
-            stock.available_stock += quantity
-
-            log = InventoryLog(
-                warehouse_id=warehouse_id,
-                product_id=product_id,
-                order_id=None,
-                change_type=ChangeType.UNFREEZE,
-                quantity=quantity,
-                before_available=stock.available_stock - quantity,
-                after_available=stock.available_stock,
-                before_reserved=stock.reserved_stock,
-                after_reserved=stock.reserved_stock,
-                before_frozen=before_frozen,
-                after_frozen=stock.frozen_stock,
-                remark=reason,
-                operator=operator or "system",
-                source="manual"
-            )
-            self.db.add(log)
-
-            self.db.commit()
-            LoggingAspect.log_operation_success(
-                "unfreeze_stock",
-                extra_data={
-                    'warehouse_id': warehouse_id,
-                    'product_id': product_id,
-                    'quantity': quantity
-                }
-            )
+            if not self.cache_service:
+                raise HTTPException(status_code=500, detail="缓存服务未初始化")
             
-            self._invalidate_cache(warehouse_id, product_id)
-
+            # 1. 获取当前库存（从 Redis）
+            current_available = self.cache_service.get_cached_stock(warehouse_id, product_id)
+            current_frozen_info = self.cache_service.get_cached_full_info(warehouse_id, product_id)
+            
+            if current_available is None:
+                current_available = 0
+            
+            current_frozen = current_frozen_info.get('frozen_stock', 0) if current_frozen_info else 0
+            
+            if current_frozen < quantity:
+                raise HTTPException(status_code=400, detail="冻结库存不足，无法解冻")
+            
+            before_available = current_available
+            after_available = current_available + quantity
+            before_frozen = current_frozen
+            after_frozen = current_frozen - quantity
+            
+            # 2. 更新 Redis 库存
+            self.cache_service.set_cached_stock(warehouse_id, product_id, after_available)
+            
+            # 更新完整信息
+            full_info = {
+                "warehouse_id": warehouse_id,
+                "product_id": product_id,
+                "available_stock": after_available,
+                "reserved_stock": 0,
+                "frozen_stock": after_frozen,
+                "safety_stock": 0,
+                "total_stock": after_available + after_frozen
+            }
+            self.cache_service.set_cached_full_info(warehouse_id, product_id, full_info)
+            
+            logger.info(f"✅ Redis 解冻成功：stock={before_available}→{after_available}, frozen={before_frozen}→{after_frozen}")
+            
+            # 3. 异步发送Kafka事件
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._send_kafka_event(
+                    event_type=InventoryEventType.UNFREEZE,
+                    warehouse_id=warehouse_id,
+                    product_id=product_id,
+                    quantity=quantity,
+                    order_id=f"UNFREEZE_{product_id}",
+                    before_stock=before_available,
+                    after_stock=after_available,
+                    remark=reason
+                ))
+            except RuntimeError:
+                import threading
+                def run_async():
+                    asyncio.run(self._send_kafka_event(
+                        event_type=InventoryEventType.UNFREEZE,
+                        warehouse_id=warehouse_id,
+                        product_id=product_id,
+                        quantity=quantity,
+                        order_id=f"UNFREEZE_{product_id}",
+                        before_stock=before_available,
+                        after_stock=after_available,
+                        remark=reason
+                    ))
+                threading.Thread(target=run_async, daemon=True).start()
+            
             return {
                 "warehouse_id": warehouse_id,
                 "product_id": product_id,
+                "before_available": before_available,
+                "after_available": after_available,
                 "before_frozen": before_frozen,
-                "after_frozen": stock.frozen_stock
+                "after_frozen": after_frozen
             }
 
         except HTTPException:
             raise
         except Exception as e:
-            self.db.rollback()
             logger.error(f"解冻库存失败：{str(e)}")
-            raise
+            raise HTTPException(status_code=500, detail=f"解冻库存失败: {str(e)}")

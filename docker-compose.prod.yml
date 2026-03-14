@@ -40,7 +40,7 @@ services:
       - "${REDIS_PORT_LOCAL:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxclients 10000
     networks:
       - fastapi_network
     healthcheck:
@@ -89,7 +89,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development  # 开发环境使用 development，生产环境改为 production
+      target: production  # ✅ 生产环境使用 production target
     container_name: fastapi_app
     restart: unless-stopped
     ports:
@@ -128,7 +128,7 @@ services:
       - fastapi_network
     command: >
       sh -c "python -c \"from alembic.config import Config; from alembic import command; alembic_cfg = Config('alembic.ini'); command.upgrade(alembic_cfg, 'head')\" &&
-             python app/main.py"
+             exec gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 8 --worker-connections 2000 -b 0.0.0.0:8000 --timeout 60 --keep-alive 5"
 
   # pgAdmin (可选的数据库管理工具)
   # 注意：pgadmin 不会随 app 自动启动，需要手动执行 docker-compose up -d pgadmin
@@ -152,7 +152,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: development
+      target: production  # ✅ 生产环境使用 production target
     container_name: fastapi_celery_worker
     restart: unless-stopped
     env_file:
@@ -184,7 +184,7 @@ services:
     networks:
       - fastapi_network
     command: >
-      sh -c "celery -A celery_app worker --loglevel=info --concurrency=4"
+      sh -c "celery -A celery_app worker --loglevel=info --concurrency=8 -Ofair --prefetch-multiplier=1"
 
 volumes:
   postgres_data:

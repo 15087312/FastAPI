@@ -43,25 +43,8 @@ class InventoryQueryService:
             logger.error("缓存服务未初始化")
             return None
         
-        # 从Redis获取完整信息
-        info = self.cache_service.get_cached_full_info(warehouse_id, product_id)
-        
-        if info is None:
-            # Redis中没有完整信息，构建基础信息
-            available = self.cache_service.get_cached_stock(warehouse_id, product_id)
-            if available is not None:
-                info = {
-                    "warehouse_id": warehouse_id,
-                    "product_id": product_id,
-                    "available_stock": available,
-                    "reserved_stock": 0,
-                    "frozen_stock": 0,
-                    "safety_stock": 0,
-                    "total_stock": available
-                }
-            else:
-                logger.debug(f"Redis中无此商品信息: warehouse={warehouse_id}, product={product_id}")
-                return None
+        # 从 Redis 获取完整信息（使用 MGET 批量读取优化）
+        info = self.cache_service.get_cached_full_info_optimized(warehouse_id, product_id)
         
         return info
 

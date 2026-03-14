@@ -65,6 +65,11 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# 生产环境启动命令：使用多进程 uvicorn
-# workers 数量根据 CPU 核心数自动调整
-CMD ["python", "app/main.py"]
+# 生产环境启动命令：使用 Gunicorn + Uvicorn workers
+# -k uvicorn.workers.UvicornWorker: 使用 Uvicorn worker
+# -w 8: 8 个 worker 进程
+# --worker-connections 2000: 每个 worker 最大连接数，避免 socket 堵塞
+# -b 0.0.0.0:8000: 监听地址
+# --timeout 60: 请求超时时间
+# --keep-alive 5: keep-alive 超时时间
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "-w", "8", "--worker-connections", "2000", "-b", "0.0.0.0:8000", "--timeout", "60", "--keep-alive", "5"]

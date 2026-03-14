@@ -195,25 +195,65 @@ class InventoryCacheService:
         self.redis.set(cache_key, available)
         logger.debug(f"Redis cache set (no expiry): {cache_key} = {available}")
 
-    def get_cached_full_info(self, warehouse_id: str, product_id: int) -> Optional[Dict[str, Any]]:
-        """获取缓存的完整库存信息（纯Redis，无回源）"""
-        cache_key = self._get_full_cache_key(warehouse_id, product_id)
-        
+    def get_cached_full_info_optimized(self, warehouse_id: str, product_id: int) -> Optional[Dict[str, Any]]:
+        """获取完整库存信息（优化版：使用 MGET 批量读取，仅 1 次网络往返）
+            
+        Args:
+            warehouse_id: 仓库 ID
+            product_id: 商品 ID
+            
+        Returns:
+            完整库存信息字典，如果不存在则返回 None
+        """
         if not self.redis:
-            logger.error("Redis未初始化")
+            logger.error("Redis 未初始化")
             return None
-
-        cached = self.redis.get(cache_key)
-
-        if cached:
-            value = cached.decode('utf-8') if isinstance(cached, bytes) else cached
-            result = json.loads(value)
-            logger.debug(f"Redis full cache hit: {cache_key}")
-            return result
-
-        # Redis中没有数据，返回默认值
-        logger.debug(f"Redis full cache miss: {cache_key}")
-        return None
+            
+        # 构建所有需要的 key，一次性 MGET 读取
+        keys = [
+            f"stock:full:{warehouse_id}:{product_id}",      # 完整信息
+            f"stock:available:{warehouse_id}:{product_id}",  # 可用库存
+            f"stock:reserved:{warehouse_id}:{product_id}",   # 预占库存
+            f"stock:frozen:{warehouse_id}:{product_id}",     # 冻结库存
+            f"stock:safety:{warehouse_id}:{product_id}"      # 安全库存
+        ]
+            
+        # 单次网络往返，批量读取所有字段
+        values = self.redis.mget(keys)
+            
+        full_info_raw, available_raw, reserved_raw, frozen_raw, safety_raw = values
+            
+        # 优先使用完整信息缓存
+        if full_info_raw:
+            value = full_info_raw.decode('utf-8') if isinstance(full_info_raw, bytes) else full_info_raw
+            info = json.loads(value)
+            logger.debug(f"MGET 命中完整信息：{warehouse_id}:{product_id}")
+            return info
+            
+        # 如果没有完整信息，尝试从各个字段构建
+        available = int(available_raw) if available_raw else 0
+        reserved = int(reserved_raw) if reserved_raw else 0
+        frozen = int(frozen_raw) if frozen_raw else 0
+        safety = int(safety_raw) if safety_raw else 0
+            
+        # 如果所有字段都是 0，说明数据不存在
+        if available == 0 and reserved == 0 and frozen == 0 and safety == 0:
+            logger.debug(f"MGET 未命中：{warehouse_id}:{product_id}")
+            return None
+            
+        # 构建完整信息
+        info = {
+            "warehouse_id": warehouse_id,
+            "product_id": product_id,
+            "available_stock": available,
+            "reserved_stock": reserved,
+            "frozen_stock": frozen,
+            "safety_stock": safety,
+            "total_stock": available + reserved + frozen
+        }
+            
+        logger.debug(f"MGET 构建完整信息：{warehouse_id}:{product_id}")
+        return info
 
     def set_cached_full_info(self, warehouse_id: str, product_id: int, info: Dict[str, Any]):
         """设置缓存的完整库存信息（永不过期）"""

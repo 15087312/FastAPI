@@ -564,7 +564,7 @@ if __name__ == "__main__":
     # 生产环境：根据 CPU 核心数调整，一般 8-16 个
     import multiprocessing
     cpu_count = multiprocessing.cpu_count()
-    workers = min(cpu_count * 2 + 1, 16)  # 最多 16 个 worker（优化后）
+    workers = min(cpu_count * 2 + 1, 1)
     
     logger.info(f"Starting server with {workers} workers (CPU cores: {cpu_count})")
     from app.core.redis import REDIS_POOL_SIZE, REDIS_POOL_MAX_OVERFLOW

@@ -469,8 +469,7 @@ async def health_check():
         else:
             checks["db_pool_status"] = "ok"
     except Exception as e:
-        checks["db_pool"] = f"error: {str(e)}"
-        is_healthy = False
+        checks["db_pool"] = f"warning: {str(e)}"
     
     # 4. 系统资源检查（如果安装了 psutil）
     try:

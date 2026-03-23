@@ -21,10 +21,15 @@ try:
     from redis import Redis
     from redis.asyncio import Redis as AsyncRedis
 except ImportError:
-    # redis < 4.0.0
+    # redis < 4.0.0 - 使用更兼容的导入方式
     import redis
-    from redis.client import Redis
-    from redis.asyncio.client import Redis as AsyncRedis
+    try:
+        from redis.client import Redis
+        from redis.asyncio.client import Redis as AsyncRedis
+    except ImportError:
+        # 某些版本可能需要直接从 redis 导入
+        from redis import Redis
+        from redis.asyncio import Redis as AsyncRedis
 
 
 # 统一的 Redis 配置（从 settings 读取）

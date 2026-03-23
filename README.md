@@ -27,13 +27,13 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ### 数据库与缓存
 - **主数据库**: [PostgreSQL 15+](https://www.postgresql.org/) - 关系型数据库
-  - 行级锁（SELECT FOR UPDATE）保证并发安全
   - 事务隔离保证数据一致性
   - CHECK 约束保证数据完整性
+  - Kafka 异步写入数据库
 - **缓存层**: [Redis 7+](https://redis.io/) - 内存数据库
-  - Lua 脚本原子操作
+  - Lua 脚本原子操作（核心库存操作）
   - 布隆过滤器防穿透
-  - 分布式锁（可选）
+  - 数据永不过期策略
 - **ORM**: [SQLAlchemy 2.0+](https://www.sqlalchemy.org/) - Python SQL 工具包
 - **迁移工具**: [Alembic](https://alembic.sqlalchemy.org/) - 数据库版本管理
 
@@ -85,7 +85,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ## 核心特性
 
-- ✅ **防超卖保障** - PostgreSQL 行级锁 + Redis Lua 脚本原子操作
+- ✅ **防超卖保障** - Redis Lua 脚本原子操作，Kafka 异步同步数据库
 - ✅ **高性能缓存** - Redis 缓存层加速读取，QPS 突破 1000+，P99 < 100ms
 - ✅ **多层架构** - API / Celery / CLI 三种调用方式
 - ✅ **完整审计** - 详细的操作日志和状态追踪
@@ -382,7 +382,8 @@ uvicorn app.main:app --reload
 - [🐛 500 错误修复](./500 错误修复经验总结.md) - 常见错误处理
 - [🔒 并发控制总结](./CONCURRENCY_FIX_SUMMARY.md) - 并发问题处理
 - [🎯 AOP 切面使用](./服务层 AOP 切面使用指南.md) - AOP 实践
-- [⚖️ 行级锁 vs 分布式锁](./行级锁与分布式锁选择说明.md) - 锁选择指南
+- [⚖️ 行级锁 vs 分布式锁](./docs/行级锁与分布式锁选择说明.md) - 历史技术选型（v2.0，已弃用）
+- [📚 架构演进说明](./docs/ARCHITECTURE_EVOLUTION.md) - **重要**：版本架构演进详解
 
 ---
 ```bash

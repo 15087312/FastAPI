@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="fastapi-env" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="fastapi-env" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="FastAPI" project-jdk-type="Python SDK" />
 </project>

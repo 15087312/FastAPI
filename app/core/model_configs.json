@@ -1,0 +1,242 @@
+{
+  "Product": {
+    "table_name": "products",
+    "fields": {
+      "id": {
+        "type": "BigInteger",
+        "primary_key": true,
+        "autoincrement": true
+      },
+      "sku": {
+        "type": "String",
+        "max_length": 64,
+        "nullable": false,
+        "unique": true,
+        "comment": "商品唯一 SKU"
+      },
+      "name": {
+        "type": "String",
+        "max_length": 255,
+        "nullable": false,
+        "comment": "商品名称"
+      },
+      "description": {
+        "type": "String",
+        "max_length": 2000,
+        "nullable": true,
+        "comment": "商品描述"
+      },
+      "price": {
+        "type": "Integer",
+        "nullable": false,
+        "default": 0,
+        "comment": "商品价格（分）"
+      },
+      "category_id": {
+        "type": "BigInteger",
+        "nullable": true,
+        "index": true,
+        "comment": "分类 ID"
+      },
+      "is_active": {
+        "type": "Boolean",
+        "nullable": false,
+        "default": true,
+        "comment": "是否上架"
+      },
+      "created_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()"
+      },
+      "updated_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()",
+        "onupdate": "now()"
+      }
+    },
+    "constraints": [
+      {"type": "check", "expression": "price >= 0", "name": "ck_price_non_negative"}
+    ]
+  },
+  
+  "ProductStock": {
+    "table_name": "product_stocks",
+    "fields": {
+      "id": {
+        "type": "BigInteger",
+        "primary_key": true,
+        "autoincrement": true,
+        "comment": "主键 ID"
+      },
+      "warehouse_id": {
+        "type": "String",
+        "max_length": 32,
+        "nullable": false,
+        "index": true,
+        "comment": "仓库 ID"
+      },
+      "product_id": {
+        "type": "BigInteger",
+        "nullable": false,
+        "index": true,
+        "foreign_key": "products.id",
+        "comment": "商品 ID"
+      },
+      "available_stock": {
+        "type": "Integer",
+        "nullable": false,
+        "default": 0,
+        "comment": "可用库存"
+      },
+      "reserved_stock": {
+        "type": "Integer",
+        "nullable": false,
+        "default": 0,
+        "comment": "预占库存"
+      },
+      "frozen_stock": {
+        "type": "Integer",
+        "nullable": false,
+        "default": 0,
+        "comment": "冻结库存"
+      },
+      "safety_stock": {
+        "type": "Integer",
+        "nullable": false,
+        "default": 0,
+        "comment": "安全库存"
+      },
+      "created_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()"
+      },
+      "updated_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()",
+        "onupdate": "now()"
+      }
+    },
+    "constraints": [
+      {"type": "unique_index", "fields": ["warehouse_id", "product_id"]},
+      {"type": "check", "expression": "available_stock >= 0"},
+      {"type": "check", "expression": "reserved_stock >= 0"},
+      {"type": "check", "expression": "frozen_stock >= 0"},
+      {"type": "check", "expression": "safety_stock >= 0"}
+    ]
+  },
+  
+  "Warehouse": {
+    "table_name": "warehouses",
+    "fields": {
+      "id": {
+        "type": "String",
+        "max_length": 32,
+        "primary_key": true,
+        "comment": "仓库 ID"
+      },
+      "name": {
+        "type": "String",
+        "max_length": 255,
+        "nullable": false,
+        "comment": "仓库名称"
+      },
+      "address": {
+        "type": "String",
+        "max_length": 500,
+        "nullable": true,
+        "comment": "仓库地址"
+      },
+      "manager": {
+        "type": "String",
+        "max_length": 100,
+        "nullable": true,
+        "comment": "仓库管理员"
+      },
+      "phone": {
+        "type": "String",
+        "max_length": 20,
+        "nullable": true,
+        "comment": "联系电话"
+      },
+      "is_active": {
+        "type": "Boolean",
+        "nullable": false,
+        "default": true,
+        "comment": "是否启用"
+      },
+      "created_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()"
+      },
+      "updated_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()",
+        "onupdate": "now()"
+      }
+    }
+  },
+  
+  "Order": {
+    "table_name": "orders",
+    "fields": {
+      "id": {
+        "type": "BigInteger",
+        "primary_key": true,
+        "autoincrement": true
+      },
+      "order_no": {
+        "type": "String",
+        "max_length": 64,
+        "nullable": false,
+        "unique": true,
+        "comment": "订单号"
+      },
+      "customer_id": {
+        "type": "BigInteger",
+        "nullable": false,
+        "index": true,
+        "comment": "客户 ID"
+      },
+      "warehouse_id": {
+        "type": "String",
+        "max_length": 32,
+        "nullable": false,
+        "foreign_key": "warehouses.id",
+        "comment": "仓库 ID"
+      },
+      "total_amount": {
+        "type": "Integer",
+        "nullable": false,
+        "default": 0,
+        "comment": "订单总金额（分）"
+      },
+      "status": {
+        "type": "String",
+        "max_length": 20,
+        "nullable": false,
+        "default": "pending",
+        "comment": "订单状态：pending,paid,shipped,completed,cancelled"
+      },
+      "created_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()"
+      },
+      "updated_at": {
+        "type": "TIMESTAMP",
+        "nullable": false,
+        "server_default": "now()",
+        "onupdate": "now()"
+      }
+    },
+    "constraints": [
+      {"type": "check", "expression": "total_amount >= 0"}
+    ]
+  }
+}

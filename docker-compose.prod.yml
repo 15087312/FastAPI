@@ -60,11 +60,11 @@ services:
       - "${KAFKA_PORT_LOCAL:-9092}:9092"
     environment:
       KAFKA_NODE_ID: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:${KAFKA_PORT_LOCAL:-9092},PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENERS: PLAINTEXT_HOST://0.0.0.0:${KAFKA_PORT_INTERNAL:-9092},CONTROLLER://0.0.0.0:9093,PLAINTEXT://0.0.0.0:9094
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -79,7 +79,7 @@ services:
     depends_on:
       - redis
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost ${KAFKA_PORT_INTERNAL:-9092} || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -96,25 +96,6 @@ services:
       - "${APP_PORT:-8000}:8000"
     env_file:
       - .env.docker
-    environment:
-      # 数据库配置（覆盖 env_file 中的默认值）
-      # ⚠️ Docker 环境：必须使用 Docker 服务名 "db" 和 "redis"
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=123456
-      - POSTGRES_HOST=db              # ✅ Docker 服务名，不要修改
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=mydb
-      # Redis 配置
-      - REDIS_HOST=redis              # ✅ Docker 服务名，不要修改
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      # Kafka 配置
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9094  # ✅ Docker 内部使用 PLAINTEXT listener
-      - KAFKA_ENABLED=true
-      # 应用配置
-      - HOST=0.0.0.0
-      - PORT=8000
-      - DEBUG=False
     depends_on:
       db:
         condition: service_healthy
@@ -157,22 +138,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env.docker
-    environment:
-      # 数据库配置
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=123456
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=mydb
-      # Redis 配置
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      # Kafka 配置
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9094
-      - KAFKA_ENABLED=true
-      # 应用配置
-      - DEBUG=False
     depends_on:
       db:
         condition: service_healthy

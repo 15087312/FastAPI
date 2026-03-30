@@ -58,9 +58,8 @@ async def get_stock(
         description="商品 ID",
         examples=[1]
     ),
-    warehouse_id: str = Query(
-        "WH01",
-        min_length=1,
+    warehouse_id: str | None = Query(
+        default=None,
         max_length=32,
         description="仓库 ID",
         examples=["WH01"]
@@ -68,6 +67,10 @@ async def get_stock(
     redis = Depends(get_redis)
 ):
     """查询商品库存（支持多仓库）- 纯 Redis 查询"""
+    # 如果未提供 warehouse_id，使用默认值
+    if not warehouse_id:
+        warehouse_id = "WH01"
+    
     try:
         service = InventoryService(redis)
         stock_info = service.get_full_stock_info(warehouse_id, product_id)
@@ -130,9 +133,8 @@ async def get_stock(
     }
 )
 async def batch_get_stocks(
-    warehouse_id: str = Query(
-        "WH01",
-        min_length=1,
+    warehouse_id: str | None = Query(
+        default=None,
         max_length=32,
         description="仓库 ID",
         examples=["WH01"]
@@ -144,6 +146,10 @@ async def batch_get_stocks(
     redis = Depends(get_redis)
 ):
     """批量查询商品库存（支持多仓库）- 纯 Redis 查询"""
+    # 如果未提供 warehouse_id，使用默认值
+    if not warehouse_id:
+        warehouse_id = "WH01"
+    
     try:
         service = InventoryService(None, redis)
         stocks = service.batch_get_stocks(warehouse_id, request.product_ids)

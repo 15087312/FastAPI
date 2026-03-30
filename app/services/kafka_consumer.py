@@ -304,6 +304,12 @@ _is_running = False
 async def get_kafka_consumer() -> Optional[AIOKafkaConsumer]:
     """获取 Kafka 消费者"""
     global _consumer
+    
+    # 如果 Kafka 未启用，直接返回 None
+    if not KAFKA_ENABLED:
+        logger.info("Kafka 未启用，跳过消费者初始化")
+        return None
+    
     if _consumer is None:
         try:
             _consumer = AIOKafkaConsumer(
@@ -315,9 +321,9 @@ async def get_kafka_consumer() -> Optional[AIOKafkaConsumer]:
                 enable_auto_commit=True
             )
             await _consumer.start()
-            logger.info(f"Kafka 消费者已启动: {KAFKA_BOOTSTRAP_SERVERS}, Topic: {INVENTORY_TOPIC}")
+            logger.info(f"Kafka 消费者已启动：{KAFKA_BOOTSTRAP_SERVERS}, Topic: {INVENTORY_TOPIC}")
         except Exception as e:
-            logger.error(f"Kafka 消费者启动失败: {e}")
+            logger.error(f"Kafka 消费者启动失败：{e}")
             _consumer = None
     return _consumer
 
@@ -699,101 +705,125 @@ async def start_kafka_consumer():
     global _is_running
     _is_running = True
     
-    consumer = await get_kafka_consumer()
-    if not consumer:
-        logger.error("无法启动 Kafka 消费者")
-        return
+    retry_count = 0
+    max_retries = 10  # 最大重试次数
+    retry_delay = 5   # 重试间隔（秒）
     
-    # 获取速率限制器和消息合并器
-    rate_limiter = get_rate_limiter()
-    message_merger = get_message_merger()
-    
-    # 统计信息
-    total_processed = 0
-    total_merged = 0
-    start_time = time.time()
-    
-    logger.info(
-        f"Kafka 消费者开始处理消息... "
-        f"速率限制: {KAFKA_MAX_MESSAGES_PER_SECOND} 条/秒, "
-        f"合并窗口: {KAFKA_MERGE_WINDOW_MS}ms, "
-        f"合并阈值: {KAFKA_MERGE_THRESHOLD}"
-    )
-    
-    try:
-        async for message in consumer:
-            if not _is_running:
-                break
+    while retry_count < max_retries:
+        try:
+            consumer = await get_kafka_consumer()
+            if not consumer:
+                logger.error("无法启动 Kafka 消费者")
+                return
             
-            try:
-                event = message.value
-                logger.debug(f"收到 Kafka 消息: {event}")
+            # 获取速率限制器和消息合并器
+            rate_limiter = get_rate_limiter()
+            message_merger = get_message_merger()
+            
+            # 统计信息
+            total_processed = 0
+            total_merged = 0
+            start_time = time.time()
+            
+            logger.info(
+                f"Kafka 消费者开始处理消息... "
+                f"速率限制：{KAFKA_MAX_MESSAGES_PER_SECOND} 条/秒，"
+                f"合并窗口：{KAFKA_MERGE_WINDOW_MS}ms, "
+                f"合并阈值：{KAFKA_MERGE_THRESHOLD}"
+            )
+            
+            # 重置重试计数器
+            retry_count = 0
+            
+            async for message in consumer:
+                if not _is_running:
+                    break
                 
-                # 速率限制：获取令牌，控制处理速度
-                wait_time = await rate_limiter.acquire()
-                if wait_time > 0:
-                    logger.debug(f"速率限制生效，等待 {wait_time:.3f} 秒")
-                
-                # 添加到消息合并器
-                merged_events = await message_merger.add(event)
-                
-                if merged_events:
-                    # 有合并后的消息需要处理
-                    for merged_event in merged_events:
-                        # 处理合并后的消息
-                        await process_inventory_event(merged_event)
-                        total_processed += 1
-                        total_merged += merged_event.get("_merged_count", 1)
-                        logger.debug(
-                            f"处理合并消息: {merged_event.get('_merge_info')}, "
-                            f"quantity={merged_event.get('quantity')}"
-                        )
-                else:
-                    # 没有达到合并阈值，继续等待
-                    pass
-                
-                # 定期输出统计信息
-                if total_processed % 1000 == 0:
-                    elapsed = time.time() - start_time
-                    actual_rate = total_processed / elapsed if elapsed > 0 else 0
-                    merge_stats = message_merger.get_stats()
-                    logger.info(
-                        f"Kafka 消费统计: 已处理 {total_processed} 条消息, "
-                        f"合并减少 {total_merged} 条, "
-                        f"实际速率: {actual_rate:.1f} 条/秒"
-                    )
-                
-            except Exception as e:
-                logger.error(f"处理消息失败: {e}")
-                
-    except asyncio.CancelledError:
-        logger.info("Kafka 消费者任务被取消")
-    except Exception as e:
-        logger.error(f"Kafka 消费者异常: {e}")
-    finally:
-        # 刷新剩余的合并消息
-        remaining = await message_merger.flush()
-        if remaining:
-            for event in remaining:
                 try:
-                    await process_inventory_event(event)
-                    total_processed += 1
+                    event = message.value
+                    logger.debug(f"收到 Kafka 消息：{event}")
+                    
+                    # 速率限制：获取令牌，控制处理速度
+                    wait_time = await rate_limiter.acquire()
+                    if wait_time > 0:
+                        logger.debug(f"速率限制生效，等待 {wait_time:.3f} 秒")
+                    
+                    # 添加到消息合并器
+                    merged_events = await message_merger.add(event)
+                    
+                    if merged_events:
+                        # 有合并后的消息需要处理
+                        for merged_event in merged_events:
+                            # 处理合并后的消息
+                            await process_inventory_event(merged_event)
+                            total_processed += 1
+                            total_merged += merged_event.get("_merged_count", 1)
+                            logger.debug(
+                                f"处理合并消息：{merged_event.get('_merge_info')}, "
+                                f"quantity={merged_event.get('quantity')}"
+                            )
+                    else:
+                        # 没有达到合并阈值，继续等待
+                        pass
+                    
+                    # 定期输出统计信息
+                    if total_processed % 1000 == 0:
+                        elapsed = time.time() - start_time
+                        actual_rate = total_processed / elapsed if elapsed > 0 else 0
+                        merge_stats = message_merger.get_stats()
+                        logger.info(
+                            f"Kafka 消费统计：已处理 {total_processed} 条消息，"
+                            f"合并减少 {total_merged} 条，"
+                            f"实际速率：{actual_rate:.1f} 条/秒"
+                        )
+                    
                 except Exception as e:
-                    logger.error(f"处理剩余消息失败: {e}")
-        
-        # 输出最终统计
-        elapsed = time.time() - start_time
-        actual_rate = total_processed / elapsed if elapsed > 0 else 0
-        logger.info(
-            f"Kafka 消费者已停止: 共处理 {total_processed} 条消息, "
-            f"合并减少 {total_merged} 条原始消息, "
-            f"平均速率: {actual_rate:.1f} 条/秒, 运行时间: {elapsed:.1f} 秒"
-        )
-        await close_kafka_consumer()
-        elapsed = time.time() - start_time
-        actual_rate = total_processed / elapsed if elapsed > 0 else 0
-        logger.info(
-            f"Kafka 消费者已停止: 共处理 {total_processed} 条消息, "
-            f"平均速率: {actual_rate:.1f} 条/秒, 运行时间: {elapsed:.1f} 秒"
-        )
-        await close_kafka_consumer()
+                    logger.error(f"处理消息失败：{e}")
+                    
+        except asyncio.CancelledError:
+            logger.info("Kafka 消费者任务被取消")
+            break
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Kafka 消费者异常：{e}")
+            
+            # 如果是 UnknownTopicOrPartitionError，等待后重试
+            if "UnknownTopicOrPartitionError" in error_msg or "UnknownTopicOrPartition" in error_msg:
+                retry_count += 1
+                if retry_count < max_retries:
+                    logger.warning(
+                        f"Kafka 主题未找到，将在 {retry_delay} 秒后重试 ({retry_count}/{max_retries})..."
+                    )
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Kafka 主题不存在，已达到最大重试次数 {max_retries}")
+                    break
+            else:
+                # 其他错误，直接退出
+                break
+        finally:
+            # 刷新剩余的合并消息（如果 message_merger 已初始化）
+            if 'message_merger' in locals() and message_merger:
+                remaining = await message_merger.flush()
+                if remaining:
+                    for event in remaining:
+                        try:
+                            await process_inventory_event(event)
+                            total_processed += 1
+                        except Exception as e:
+                            logger.error(f"处理剩余消息失败：{e}")
+            
+            # 输出最终统计（如果 start_time 已初始化）
+            if 'start_time' in locals():
+                elapsed = time.time() - start_time
+                actual_rate = total_processed / elapsed if elapsed > 0 else 0
+                logger.info(
+                    f"Kafka 消费者已停止：共处理 {total_processed} 条消息，"
+                    f"合并减少 {total_merged} 条原始消息，"
+                    f"平均速率：{actual_rate:.1f} 条/秒，运行时间：{elapsed:.1f} 秒"
+                )
+            await close_kafka_consumer()
+    
+    if retry_count >= max_retries:
+        logger.error("Kafka 消费者已停止，无法连接到主题")

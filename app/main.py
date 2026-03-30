@@ -490,9 +490,9 @@ async def health_check():
     
     # 5. Kafka 消费者检查（可选）
     try:
-        from app.services.kafka_consumer import kafka_consumer
+        from app.services.kafka_consumer import _is_running
         # 简单检查，实际应该检查消费者状态
-        checks["kafka_consumer"] = "running" if kafka_consumer else "not started"
+        checks["kafka_consumer"] = "running" if _is_running else "not started"
     except Exception as e:
         checks["kafka_consumer"] = f"warning: {str(e)}"
     

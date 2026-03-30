@@ -1,0 +1,764 @@
+Metadata-Version: 2.4
+Name: inventory-service
+Version: 1.0.0
+Summary: 专业的库存管理微服务库，支持高并发环境下的库存安全管理
+Home-page: https://github.com/your-org/inventory-service
+Author: 库存微服务团队
+Author-email: 库存微服务团队 <inventory@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/your-org/inventory-service
+Project-URL: Documentation, https://github.com/your-org/inventory-service/docs
+Project-URL: Repository, https://github.com/your-org/inventory-service
+Project-URL: Bug-Tracker, https://github.com/your-org/inventory-service/issues
+Keywords: inventory,microservice,fastapi,redis,kafka,sqlalchemy,celery
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Classifier: Topic :: Database :: Database Engines/Servers
+Classifier: Framework :: FastAPI
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi>=0.104.0
+Requires-Dist: uvicorn[standard]>=0.24.0
+Requires-Dist: httptools>=0.6.0
+Requires-Dist: gunicorn>=21.2.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: psycopg2-binary>=2.9.9
+Requires-Dist: alembic>=1.12.0
+Requires-Dist: redis>=5.0.1
+Requires-Dist: aioredis>=2.0.1
+Requires-Dist: bloom-filter2>=2.0.0
+Requires-Dist: aiokafka>=0.10.0
+Requires-Dist: hiredis>=2.2.0
+Requires-Dist: celery>=5.3.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: aiohttp>=3.9.0
+Requires-Dist: pydantic>=2.5.0
+Requires-Dist: pydantic-settings>=2.1.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: loguru>=0.7.0
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: pytest>=7.4.0
+Requires-Dist: httpx>=0.25.0
+Provides-Extra: dev
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Provides-Extra: docker
+Requires-Dist: docker>=6.0.0; extra == "docker"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
+# FastAPI 库存微服务
+
+一个专业的、生产级的库存微服务，**基于 Docker 部署**，支持高并发环境下的库存安全管理，防止超卖问题。
+
+## 🚀 快速启动
+
+**只需一条命令**：
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+详细说明请参考：[DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md)
+
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-green)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-blue)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-7%2B-red)](https://redis.io/)
+[![License](https://img.shields.io/badge/License-Educational-red)](LICENSE)
+
+## 📋 技术栈
+
+### 核心框架
+- **Web 框架**: [FastAPI 0.104+](https://fastapi.tiangolo.com/) - 现代高性能 Python Web 框架
+- **ASGI 服务器**: [Uvicorn](https://www.uvicorn.org/) - 高性能 ASGI 服务器
+- **数据验证**: [Pydantic 2.5+](https://docs.pydantic.dev/) - 数据验证和序列化
+- **依赖注入**: FastAPI 内置依赖注入系统
+
+### 数据库与缓存
+- **主数据库**: [PostgreSQL 15+](https://www.postgresql.org/) - 关系型数据库
+  - 事务隔离保证数据一致性
+  - CHECK 约束保证数据完整性
+  - Kafka 异步写入数据库
+- **缓存层**: [Redis 7+](https://redis.io/) - 内存数据库
+  - Lua 脚本原子操作（核心库存操作）
+  - 布隆过滤器防穿透
+  - 数据永不过期策略
+- **ORM**: [SQLAlchemy 2.0+](https://www.sqlalchemy.org/) - Python SQL 工具包
+- **迁移工具**: [Alembic](https://alembic.sqlalchemy.org/) - 数据库版本管理
+
+### 消息队列与异步任务
+- **消息队列**: [Apache Kafka](https://kafka.apache.org/) (aiokafka)
+  - 库存变更事件通知下游系统
+  - 异步解耦订单与库存服务
+- **任务队列**: [Celery 5.3+](https://docs.celeryq.dev/)
+  - 定时清理过期预占
+  - 异步批处理任务
+
+### 性能优化
+- **连接池**: SQLAlchemy 连接池管理
+  - 动态调整池大小（默认 pool_size=11, max_overflow=22）
+  - 根据 worker 数量自动优化
+- **缓存策略**: Cache-Aside 模式
+  - 读操作优先查缓存
+  - 写操作后失效缓存
+  - TTL 永不过期
+- **布隆过滤器**: [bloom-filter2](https://pypi.org/project/bloom-filter2/)
+  - 快速判断商品 ID 是否存在
+  - 减少无效数据库查询
+
+### 监控与日志
+- **日志框架**: [Loguru](https://github.com/Delgan/loguru) + Python logging
+  - 结构化日志支持
+  - AOP 切面统一日志处理
+- **系统监控**: [psutil](https://psutil.readthedocs.io/)
+  - CPU、内存、磁盘、网络监控
+  - 数据库连接池状态监控
+- **健康检查**: 自定义健康检查端点
+  - 数据库连接检查
+  - Redis 连接检查
+  - 连接池状态检查
+  - 系统资源检查
+
+### 开发工具
+- **环境变量**: [python-dotenv](https://pypi.org/project/python-dotenv/)
+- **HTTP 客户端**: [requests](https://requests.readthedocs.io/) + [aiohttp](https://docs.aiohttp.org/)
+- **测试框架**: [pytest 7.4+](https://docs.pytest.org/) + [httpx](https://www.python-httpx.org/)
+
+### 部署与运维
+- **容器化**: [Docker](https://www.docker.com/) + [Docker Compose](https://docs.docker.com/compose/)
+- **多阶段构建**: Dockerfile 优化镜像大小
+- **非 root 用户**: 生产环境使用非 root 用户运行
+- **健康检查**: Docker HEALTHCHECK 指令
+
+---
+
+## 核心特性
+
+- ✅ **防超卖保障** - Redis Lua 脚本原子操作，Kafka 异步同步数据库
+- ✅ **高性能缓存** - Redis 缓存层加速读取，QPS 突破 1000+，P99 < 100ms
+- ✅ **多层架构** - API / Celery / CLI 三种调用方式
+- ✅ **完整审计** - 详细的操作日志和状态追踪
+- ✅ **幂等保证** - 基于 Redis 的请求去重机制，防止重复提交
+- ✅ **优雅降级** - Redis 故障时自动降级到数据库模式
+- ✅ **接口防护** - 限流 + 参数校验 + 商品 ID 合法性检查
+- ✅ **布隆过滤器** - 快速判断商品 ID 是否存在，减少无效数据库查询
+- ✅ **Kafka 集成** - 库存变更消息通知下游系统
+- ✅ **完整健康检查** - 数据库、Redis、连接池、系统资源全方位监控
+- ✅ **AOP 切面** - 统一处理日志、性能监控、缓存失效
+
+## 🚀 快速开始（Docker 一键启动）
+
+### 环境要求
+- Docker 20+
+- Docker Compose 2.0+
+
+### 启动所有服务
+```bash
+# 克隆项目
+git clone https://github.com/15087312/FastAPI.git
+cd FastAPI_mall
+
+# 复制环境变量配置
+cp .env.docker .env.docker
+
+# 启动所有服务（PostgreSQL, Redis, Kafka, 应用）
+docker-compose -f docker-compose.prod.yml up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看应用日志
+docker logs -f fastapi_app
+```
+
+### 访问服务
+- **API 文档**: http://localhost:8000/docs
+- **ReDoc 文档**: http://localhost:8000/redoc  
+- **健康检查**: http://localhost:8000/health
+- **系统监控**: http://localhost:8000/api/v1/system/metrics
+- **pgAdmin**: http://localhost:5050 (admin@example.com / 123456)
+
+### 停止服务
+```bash
+docker-compose -f docker-compose.prod.yml down
+```
+
+### 核心 API 端点
+- `POST /api/v1/inventory/reserve` - 预占库存
+- `POST /api/v1/inventory/confirm/{order_id}` - 确认库存
+- `POST /api/v1/inventory/release/{order_id}` - 释放库存
+- `GET /api/v1/inventory/stock/{product_id}` - 查询单个商品库存
+- `POST /api/v1/inventory/stock/batch` - 批量查询库存
+- `POST /api/v1/inventory/cleanup/manual` - 手动清理过期预占
+
+## 🛠️ Docker 环境配置详解
+
+### Docker Compose 配置
+项目使用 Docker Compose 管理所有依赖服务（PostgreSQL, Redis, Kafka, pgAdmin）：
+
+完整配置请参考 `docker-compose.prod.yml` 文件。
+
+### 环境变量配置
+Docker 环境使用 `.env.docker` 文件配置应用环境：
+
+```bash
+# 数据库配置（Docker 网络）
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+POSTGRES_DB=mydb
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=123456
+
+# Redis 配置（Docker 网络）
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# Kafka 配置
+KAFKA_BOOTSTRAP_SERVERS=kafka:9094
+KAFKA_ENABLED=true
+
+# 应用配置
+DEBUG=False
+PORT=8000
+```
+
+### Docker 服务管理命令
+
+```bash
+# 启动所有服务
+docker-compose -f docker-compose.prod.yml up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看服务日志
+docker-compose logs -f
+
+# 查看特定服务日志
+docker-compose logs -f app        # 应用日志
+docker-compose logs -f db         # 数据库日志
+docker-compose logs -f redis      # Redis 日志
+docker-compose logs -f kafka      # Kafka 日志
+
+# 停止服务
+docker-compose -f docker-compose.prod.yml down
+
+# 停止并清除数据卷
+docker-compose -f docker-compose.prod.yml down -v
+
+# 重启特定服务
+docker-compose restart db
+docker-compose restart redis
+docker-compose restart kafka
+docker-compose restart app
+```
+
+## 🏗️ 项目架构
+
+### 系统架构图
+
+```mermaid
+graph TD
+    A[客户端请求] --> B[Nginx/负载均衡]
+    B --> C[Uvicorn Worker 1]
+    B --> D[Uvicorn Worker 2]
+    B --> E[Uvicorn Worker N]
+    
+    C --> F[FastAPI 路由层]
+    D --> F
+    E --> F
+    
+    F --> G[InventoryService]
+    G --> H{Redis 可用？}
+    H -->|是 | I[缓存读取]
+    H -->|否 | J[数据库查询]
+    
+    I --> K[布隆过滤器检查]
+    K --> L{商品存在？}
+    L -->|是 | M[返回缓存]
+    L -->|否 | J
+    
+    G --> N[写操作？]
+    N -->|是 | O[行级锁 SELECT FOR UPDATE]
+    O --> P[数据库事务]
+    P --> Q[提交事务]
+    Q --> R[失效缓存]
+    R --> S[发送 Kafka 消息]
+    S --> T[返回结果]
+    
+    J --> T
+    M --> T
+```
+
+### 技术架构层次
+
+```
+┌─────────────────────────────────────────┐
+│         API Layer (FastAPI)             │
+│  - 路由控制                             │
+│  - 参数验证 (Pydantic)                  │
+│  - 限流保护                             │
+│  - 健康检查                             │
+└─────────────────────────────────────────┘
+              ▼
+┌─────────────────────────────────────────┐
+│      Service Layer (AOP 切面)           │
+│  - InventoryService                     │
+│  - 日志记录                             │
+│  - 性能监控                             │
+│  - 缓存管理                             │
+│  - 异常处理                             │
+└─────────────────────────────────────────┘
+              ▼
+┌─────────────────────────────────────────┐
+│        Data Access Layer                │
+│  - SQLAlchemy ORM                       │
+│  - 数据库连接池                         │
+│  - 事务管理                             │
+│  - 行级锁控制                           │
+└─────────────────────────────────────────┘
+              ▼
+┌──────────────┐          ┌──────────────┐
+│  PostgreSQL  │◄────────►│    Redis     │
+│  - 主数据库  │          │  - 缓存层    │
+│  - 事务支持  │          │  - Lua 脚本  │
+│  - 行级锁    │          │  - 布隆过滤  │
+└──────────────┘          └──────────────┘
+              ▼
+┌─────────────────────────────────────────┐
+│       Message Queue (Kafka)             │
+│  - 库存变更事件                         │
+│  - 异步解耦                             │
+│  - 下游通知                             │
+└─────────────────────────────────────────┘
+```
+
+### 部署架构
+
+```
+┌─────────────────────────────────────────┐
+│         Docker Compose                  │
+│                                         │
+│  ┌─────────────┐  ┌─────────────┐      │
+│  │   App       │  │   App       │      │
+│  │  (Worker 1) │  │  (Worker N) │      │
+│  │  :8000      │  │  :8000      │      │
+│  └──────┬──────┘  └──────┬──────┘      │
+│         │                │              │
+│         └────────┬───────┘              │
+│                  │                      │
+│         ┌────────▼────────┐            │
+│         │   PostgreSQL    │            │
+│         │   :5432         │            │
+│         └────────┬────────┘            │
+│                  │                      │
+│         ┌────────▼────────┐            │
+│         │     Redis       │            │
+│         │   :6379         │            │
+│         └─────────────────┘            │
+│                                         │
+│  ┌─────────────┐                        │
+│  │   pgAdmin   │                        │
+│  │   :5050     │                        │
+│  └─────────────┘                        │
+└─────────────────────────────────────────┘
+```
+
+```bash
+# 启动开发服务器（自动热重载）
+uvicorn app.main:app --reload
+```
+
+**访问地址：**
+
+- 应用主页：http://127.0.0.1:8000
+- 接口文档（Swagger）：http://127.0.0.1:8000/docs
+
+## 📊 性能指标
+
+### 压力测试结果
+
+基于官方压力测试工具 ([stress_test.py](stress_test.py), [simple_stress_test.py](simple_stress_test.py))
+
+#### 查询接口性能 (GET /api/v1/inventory/stock/{product_id})
+
+| 并发数 | 总请求数 | 成功率 | QPS | P50 | P90 | P95 | P99 | 平均响应 |
+|--------|----------|--------|-----|-----|-----|-----|-----|----------|
+| 10 | 1000 | 100% | 932.88 | 7ms | 12ms | 14ms | 33ms | 8ms |
+| 50 | 5000 | 100% | 1042.49 | 22ms | 44ms | 50ms | 89ms | 29ms |
+
+**性能基准**:
+- ✅ **QPS**: 1000+
+- ✅ **P99**: < 100ms
+- ✅ **成功率**: 100%
+- ✅ **综合评分**: 98/100 ⭐⭐⭐⭐⭐
+
+### 健康检查性能
+
+- **响应时间**: < 50ms
+- **检查项**: 5 大类（数据库、Redis、连接池、系统资源、Kafka）
+- **准确性**: 100%
+
+### 缓存效果
+
+- **有缓存查询**: P50 ≈ 7ms
+- **无缓存查询**: P50 ≈ 50ms
+- **性能提升**: 约 **7 倍**
+
+详细性能数据请查看 [PERFORMANCE_TEST_REPORT.md](docs/PERFORMANCE_TEST_REPORT.md)
+
+---
+
+## 📚 文档资源
+
+### 核心文档
+- [📘 技术文档](./技术文档.md) - 详细的架构设计和技术说明
+- [📝 API 总览](./api总览.md) - 完整的接口文档
+- [⚡ 快速参考](./QUICK_REFERENCE.md) - 日常开发速查表
+
+### 测试与监控
+- [📊 性能测试报告](./PERFORMANCE_TEST_REPORT.md) - 详细性能测试数据和分析
+- [🏥 健康检查指南](./HEALTH_CHECK_GUIDE.md) - 健康检查完整使用说明
+- [🧪 压力测试脚本](./stress_test.py) - 压力测试工具
+- [🧪 简单测试脚本](./simple_stress_test.py) - 简化版测试工具
+
+### 部署与配置
+- [🐳 Docker 部署指南](./DOCKER_DEPLOYMENT.md) - Docker 环境部署
+- [⚙️ 高并发配置](./高并发配置指南.md) - 高并发场景优化
+- [🔌 端口切换说明](./端口占用自动切换说明.md) - 端口自动切换机制
+
+### 经验总结
+- [🐛 500 错误修复](./500 错误修复经验总结.md) - 常见错误处理
+- [🔒 并发控制总结](./CONCURRENCY_FIX_SUMMARY.md) - 并发问题处理
+- [🎯 AOP 切面使用](./服务层 AOP 切面使用指南.md) - AOP 实践
+- [⚖️ 行级锁 vs 分布式锁](./docs/行级锁与分布式锁选择说明.md) - 历史技术选型（v2.0，已弃用）
+- [📚 架构演进说明](./docs/ARCHITECTURE_EVOLUTION.md) - **重要**：版本架构演进详解
+
+---
+```bash
+# 停止容器（不删除数据）
+docker compose down
+```
+
+**数据管理**
+
+```bash
+# 停止服务（保留数据）
+docker compose down
+
+# 停止并清除所有数据
+docker compose down -v
+
+# 备份数据库
+docker compose exec db pg_dump -U postgres mydb > backup.sql
+
+# 恢复数据库
+docker compose exec -T db psql -U postgres mydb < backup.sql
+```
+
+## ⚡ 一键启动脚本
+
+### Windows PowerShell
+```powershell
+# 创建 start.ps1
+@'
+docker compose up -d
+uvicorn app.main:app --reload
+'@ | Out-File -FilePath start.ps1 -Encoding UTF8
+
+# 运行
+./start.ps1
+```
+
+### Linux/macOS Bash
+```bash
+#!/bin/bash
+# 创建 start.sh
+
+docker compose up -d
+uvicorn app.main:app --reload
+
+chmod +x start.sh
+./start.sh
+```
+
+在项目根目录创建 `start.ps1`：
+
+```powershell
+# 启动数据库等基础服务
+docker compose up -d
+
+# 启动 FastAPI 开发服务器
+uvicorn app.main:app --reload
+```
+
+**运行：**
+
+```bash
+.\start.ps1
+```
+
+## 🧪 测试
+
+### 单元测试
+
+项目包含完整的单元测试套件，覆盖以下模块：
+
+- **库存服务测试** (`tests/test_inventory_service.py`) - 核心业务逻辑
+- **路由测试** (`tests/test_inventory_router.py`) - API 接口层
+- **模型测试** (`tests/test_models.py`) - 数据模型和约束
+- **依赖注入测试** (`tests/test_dependencies.py`) - 依赖管理和注入
+- **Celery 任务测试** (`tests/test_celery_tasks.py`) - 异步任务
+- **集成测试** (`tests/test_app.py`) - 应用整体功能验证
+
+### 运行测试
+
+```bash
+# 安装测试依赖
+pip install pytest pytest-cov httpx
+
+# 运行所有测试
+python run_tests.py --all
+
+# 或使用 pytest 直接运行
+python -m pytest tests/ -v
+
+# 运行特定模块测试
+python run_tests.py --service    # 库存服务
+python run_tests.py --router     # 路由
+python run_tests.py --models     # 模型
+python run_tests.py --deps       # 依赖注入
+python run_tests.py --tasks      # Celery 任务
+python run_tests.py --integration # 集成测试
+
+# 运行特定测试函数
+python run_tests.py test_reserve_stock_success
+
+# 生成覆盖率报告
+python run_tests.py --coverage
+
+# 并行执行测试 (需要安装 pytest-xdist)
+python run_tests.py --parallel --all
+
+# 组合选项
+python run_tests.py --service --verbose --coverage
+```
+
+### 测试特性
+
+- **Mock 驱动**：使用 unittest.mock 隔离外部依赖
+- **数据库隔离**：使用内存 SQLite 数据库进行模型测试
+- **完整覆盖**：涵盖正常流程、异常处理、边界条件
+- **快速执行**：无需启动真实服务即可运行
+- **并行支持**：支持多核并行执行测试（可选）
+
+### 集成测试
+
+```bash
+# 运行集成测试（需要服务运行）
+python run_tests.py --integration
+
+# 或直接运行测试文件
+python -m pytest tests/test_app.py -v
+
+# 运行 OpenAPI 相关测试
+python run_tests.py --openapi
+```
+
+测试覆盖内容：
+- ✅ 健康检查和基础接口
+- ✅ API 文档访问验证 (Swagger UI, ReDoc)
+- ✅ OpenAPI Schema 完整性
+- ✅ Pydantic 模型验证
+- ✅ 库存路由注册检查
+- ✅ CORS 头部支持
+- ✅ 服务启动等待机制
+
+## 🛠️ 开发工作流
+
+1. **启动环境**: `docker compose up -d`
+2. **运行应用**: `uvicorn app.main:app --reload`
+3. **开发调试**: 
+   - 使用 Swagger UI (`/docs`) 测试接口
+   - 查看 ReDoc 文档 (`/redoc`) 
+   - 验证 OpenAPI JSON (`/openapi.json`)
+4. **运行测试**: 
+   - `python -m pytest tests/` (单元测试)
+   - `python test_openapi.py` (OpenAPI测试)
+5. **停止服务**: `docker compose down`
+
+1️⃣ `docker compose up -d`
+2️⃣ `uvicorn app.main:app --reload` 
+3️⃣ 开发接口
+4️⃣ `docker compose down` （结束工作）
+
+## 🔧 故障排除
+
+### 服务状态检查
+```bash
+# 查看所有容器状态
+docker compose ps
+
+# 查看服务日志
+docker compose logs db      # 数据库日志
+docker compose logs redis   # Redis 日志
+
+# 重启特定服务
+docker compose restart db
+docker compose restart redis
+```
+
+### 常见问题解决
+
+**Redis 连接失败**
+```bash
+# 检查 Redis 服务
+docker compose logs redis | grep -i error
+
+# 重新创建 Redis 容器
+docker compose down
+docker compose up -d redis
+```
+
+**数据库连接超时**
+```bash
+# 检查数据库连接
+docker compose exec db pg_isready
+
+# 查看数据库日志
+docker compose logs db | tail -20
+```
+
+**缓存数据不一致**
+```bash
+# 清理 Redis 缓存
+docker compose exec redis redis-cli FLUSHALL
+
+# 或重启 Redis 服务
+docker compose restart redis
+```
+
+**查看容器状态：**
+```bash
+docker ps -a
+```
+
+**查看数据库日志：**
+```bash
+docker logs fastapi_db
+```
+
+**查看Redis日志：**
+```bash
+docker logs fastapi_redis
+```
+
+**重启特定服务：**
+```bash
+# 重启数据库
+docker compose restart db
+
+# 重启Redis
+docker compose restart redis
+```
+## 🆕 新版本功能说明 (v2.0)
+
+### 1. Redis Lua 原子操作
+使用 Lua 脚本实现 Redis 原子操作，确保库存扣减的原子性：
+- 原子预占：检查库存 → 扣减库存 → 记录预占，三步原子执行
+- 原子释放：检查预占记录 → 增加库存 → 移除记录
+- 批量原子预占：支持多商品批量预占
+
+```lua
+-- 原子预占脚本示例
+local current_stock = redis.call('GET', stock_key)
+if current_stock < quantity then return {current_stock, 0} end
+if redis.call('SISMEMBER', reservation_key, order_id) == 1 then return {current_stock, 1} end
+local new_stock = redis.call('DECRBY', stock_key, quantity)
+redis.call('SADD', reservation_key, order_id)
+```
+
+### 2. 接口防护体系
+- **限流中间件**：基于 Redis 滑动窗口算法，每秒 50 请求（可配置）
+- **参数合法性校验**：product_id 范围检查 (1~10,000,000)
+- **BloomFilter 快速过滤**：快速判断商品ID是否存在，减少无效数据库查询
+
+### 3. 接口幂等性
+使用 Redis 记录操作结果，支持 order_id 级别的幂等性：
+- 预占 (reserve)、确认 (confirm)、释放 (release) 接口均支持幂等
+- TTL 24 小时，防止重复提交攻击
+
+### 4. Kafka 消息集成
+库存变更事件实时通知下游系统：
+- 支持事件类型：RESERVE, CONFIRM, RELEASE, INCREASE, DECREASE
+- 异步发送，连接失败不影响主业务
+
+### 5. 缓存优化
+- TTL 设为永不过期，避免缓存穿透
+- 空值缓存：查询结果为空的商品也缓存标记
+- 缓存预热：服务启动时批量加载库存数据到 Redis
+
+### 6. 架构流程图
+```
+请求 → 参数校验 → 限流检查 → BloomFilter → Redis原子操作 → 数据库更新 → Kafka通知 → 返回
+```
+
+## 📊 性能基准
+
+| 操作类型 | QPS | 响应时间 | 缓存命中率 |
+|---------|-----|---------|-----------|
+| 单商品查询 | 5,000+ | <50ms | 90%+ |
+| 批量查询(10个) | 2,000+ | <100ms | 85%+ |
+| 库存预占 | 1,000+ | <200ms | N/A |
+| 库存确认 | 1,500+ | <150ms | N/A |
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+### 开发规范
+- 遵循 PEP 8 代码风格
+- 添加必要的单元测试
+- 更新相关文档
+- 使用有意义的提交信息
+
+### 本地开发
+```bash
+# 运行测试
+python -m pytest tests/ -v
+
+# 代码质量检查
+flake8 app/
+black app/
+
+# 类型检查
+mypy app/
+```
+
+## 📄 许可证
+
+## 📄 许可证
+
+本软件仅供学习使用 - 详见 [LICENSE](LICENSE) 文件
+
+**禁止商业用途**
+
+---
+
+<p align="center">
+  <strong>📦 专业的库存管理解决方案</strong>
+</p>

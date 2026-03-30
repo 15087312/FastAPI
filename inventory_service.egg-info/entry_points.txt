@@ -1,0 +1,3 @@
+[console_scripts]
+inventory-init = app.init_data:init_cli
+inventory-server = app.main:main
